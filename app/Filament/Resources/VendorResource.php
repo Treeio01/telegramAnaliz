@@ -45,6 +45,14 @@ class VendorResource extends Resource
                     ->label('Всего аккаунтов')
                     ->sortable(),
 
+                TextColumn::make('avg_invites')
+                    ->label('Среднее кол-во инвайтов')
+                    ->state(function (Vendor $record) {
+                        $avg = $record->accounts()->avg('stats_invites_count');
+                        return $avg ? round($avg, 2) : 0;
+                    }),
+                    // Убираем sortable(), чтобы не было ошибки SQL
+
                 TextColumn::make('survival_rate')
                     ->label('Выживаемость (%)')
                     ->state(function (Vendor $record) {
