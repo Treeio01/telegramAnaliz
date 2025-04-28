@@ -13,6 +13,13 @@ class StatsController extends Controller
     public function vendorProfile(Request $request, Vendor $vendor)
     {
         $accounts = Account::where('vendor_id', $vendor->id);
+        $type = $request->input('type', 'total');
+
+        if ($type === 'spam') {
+            $accounts->where('spamblock', '!=', 'free'); // всё что не free — это спам
+        } elseif ($type === 'clean') {
+            $accounts->where('spamblock', 'free'); // только "free" — это чистые
+        }
 
         if ($request->filled('geo')) {
             $accounts->whereIn('geo', (array)$request->input('geo'));
@@ -41,7 +48,7 @@ class StatsController extends Controller
         $avgInviteCost = $totalInvites > 0 ? round($totalSpent / $totalInvites, 4) : 0;
 
         $geos = Account::select('geo')->distinct()->pluck('geo')->filter()->sort()->values();
-
+        $geoPrices = GeoPrice::whereIn('geo', $geos)->pluck('price', 'geo')->toArray();
         return view('stats.profile', [
             'vendor' => $vendor,
             'total' => $total,
@@ -52,6 +59,8 @@ class StatsController extends Controller
             'avg_invite_cost' => $avgInviteCost,
             'filters' => $request->only(['geo', 'from', 'to', 'type']),
             'geos' => $geos,
+            'geoPrices' => $geoPrices,
+            'accounts' => $accounts,
         ]);
     }
 
@@ -60,8 +69,8 @@ class StatsController extends Controller
         // Фильтры
         $geos = Account::select('geo')->distinct()->pluck('geo')->filter()->sort()->values();
         $highlight = $request->boolean('highlight');
-        $minAccounts = $request->input('min_accounts', 3);
-        $survivalThreshold = $request->input('survival_threshold', 30);
+        $minAccounts = $request->input('min_accounts', 0);
+        $survivalThreshold = $request->input('survival_threshold', 0);
 
         // Сбор данных
         $query = Account::query()
@@ -91,14 +100,27 @@ class StatsController extends Controller
         }
 
 
+        // здесь полное инфо
         $stats = $query->get()->map(function ($row) {
             $vendor = Vendor::find($row->vendor_id);
+
+            // Считаем общее количество инвайтов и сумму потраченного для каждого вендора
+            $accounts = Account::where('vendor_id', $row->vendor_id)->get();
+            $totalInvites = $accounts->sum('stats_invites_count');
+            $totalSpent = $accounts->sum(function ($acc) {
+                return $acc->price ?? \App\Models\GeoPrice::where('geo', $acc->geo)->value('price') ?? 0;
+            });
+            $avgInviteCost = $totalInvites > 0 ? $totalSpent / $totalInvites : 0;
+            
             return [
                 'vendor_id' => $vendor?->id ?? 'unknown',
                 'vendor_name' => $vendor?->name ?? 'unknown',
                 'total' => $row->total,
                 'alive' => $row->alive,
                 'survival_rate' => (float)$row->survival_rate,
+                'total_invites' => $totalInvites,
+                'total_spent' => $totalSpent,
+                'avg_invite_cost' => $avgInviteCost,
             ];
         })->filter(function ($stat) use ($minAccounts, $survivalThreshold) {
             return $stat['total'] >= $minAccounts && $stat['survival_rate'] >= $survivalThreshold;

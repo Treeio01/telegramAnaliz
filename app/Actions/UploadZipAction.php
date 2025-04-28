@@ -9,8 +9,10 @@ use ZipArchive;
 
 class UploadZipAction
 {
-    public static function handle(Request $request): \App\Models\Upload
+    public static function handle(Request $request): Upload
     {
+        $type = $request->input('type'); // valid или dead
+
         $path = $request->file('zip_file')->store('zips', 'local');
         $realPath = Storage::disk('local')->path($path);
         $extractPath = storage_path("app/tmp/" . Str::uuid());
@@ -25,7 +27,7 @@ class UploadZipAction
         $zip->close();
 
         $upload = Upload::create([
-            'type' => $request->input('type'),
+            'type' => $type,
             'meta' => ['original_name' => $request->file('zip_file')->getClientOriginalName()],
         ]);
 
@@ -37,19 +39,35 @@ class UploadZipAction
             $jsonPath = $extractPath . '/' . $file;
             $json = json_decode(file_get_contents($jsonPath), true);
 
-            if (!$json || !isset($json['phone'])) continue;
+            // ⚙️ dead аккаунты — в api_data
+            $data = $type === 'dead' && isset($json['api_data']) ? $json['api_data'] : $json;
 
-            $geo = self::getGeoFromPhone($json['phone']);
-            $price = $json['price'] ?? null;
+            $phone = $data['phone'] ?? null;
+            if (!$phone) continue;
+
+            $geo = self::getGeoFromPhone($phone);
+            $price = $data['price'] ?? null;
+            $role = $data['role'] ?? 'unknown';
 
             if (empty($price) && $geo) {
                 $geoWithMissingPrices[$geo] = true;
             }
 
-            $rawJsonList[] = $json + ['geo' => $geo];
+            $normalized = [
+                'geo' => $geo,
+                'price' => $price,
+                'phone' => $phone,
+                'spamblock' => $data['spamblock'] ?? null,
+                'role' => $role,
+                'session_created_date' => $data['session_created_date'] ?? null,
+                'last_connect_date' => $data['last_connect_date'] ?? null,
+                'stats_invites_count' => $data['stats_invites_count'] ?? 0,
+            ];
+
+            $rawJsonList[] = $normalized;
         }
 
-        // 🔐 Надёжно сохраняем в сессию
+        // сохраняем в сессию
         session()->put("upload_data_{$upload->id}", $rawJsonList);
         session()->put("geo_list_for_upload_{$upload->id}", array_keys($geoWithMissingPrices));
 

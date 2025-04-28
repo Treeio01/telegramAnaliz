@@ -11,4 +11,6 @@ class GeoPrice extends Model
     use HasFactory;
 
     protected $fillable = ['geo', 'price'];
+
+    
 }

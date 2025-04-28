@@ -13,7 +13,7 @@
             @endforeach
         </select>
     </label>
-    
+
     <label>Тип:
         <select name="type">
             <option value="total" {{ ($filters['type'] ?? 'total') === 'total' ? 'selected' : '' }}>total</option>

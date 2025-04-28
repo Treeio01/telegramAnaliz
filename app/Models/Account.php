@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Account extends Model
 {
@@ -58,5 +59,10 @@ class Account extends Model
     public function upload(): BelongsTo
     {
         return $this->belongsTo(Upload::class);
+    }
+
+    public function lists(): BelongsToMany
+    {
+        return $this->belongsToMany(AccountList::class, 'account_list_account');
     }
 }

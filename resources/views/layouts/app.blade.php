@@ -12,8 +12,7 @@
             <li><a href="/" class="{{ request()->is('/') ? 'active' : '' }}">📤 Загрузка архива</a></li>
             <li><a href="{{ route('stats.vendors') }}" class="{{ request()->is('stats/vendors') ? 'active' : '' }}">📊 Выживаемость</a></li>
             <li><a href="{{ route('stats.invites') }}" class="{{ request()->is('stats/invites') ? 'active' : '' }}">📈 Инвайты</a></li>
-            <li><a href="#" class="{{ request()->is('stats/revenue') ? 'active' : '' }}">💰 Доходы</a></li>
-            <li><a href="#" class="{{ request()->is('vendor/*/profile') ? 'active' : '' }}">🧑 Профили</a></li>
+            
         </ul>
     </nav>
     <div class="container">

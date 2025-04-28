@@ -18,4 +18,9 @@ class Upload extends Model
     protected $casts = [
         'meta' => 'array',
     ];
+
+    public function accounts()
+    {
+        return $this->hasMany(Account::class);
+    }
 }

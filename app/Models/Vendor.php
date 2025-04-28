@@ -9,7 +9,7 @@ class Vendor extends Model
 {
     /** @use HasFactory<\Database\Factories\VendorFactory> */
     use HasFactory;
-    
+
     /**
      * Атрибуты, которые можно массово назначать.
      *
@@ -18,4 +18,19 @@ class Vendor extends Model
     protected $fillable = [
         'name',
     ];
+
+    public function accounts()
+    {
+        return $this->hasMany(Account::class);
+    }
+
+    public function aliveAccountsCount()
+    {
+        return $this->accounts()->where('spamblock', 'free')->count();
+    }
+
+    public function totalAccountsCount()
+    {
+        return $this->accounts()->count();
+    }
 }

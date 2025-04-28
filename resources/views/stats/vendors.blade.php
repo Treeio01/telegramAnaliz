@@ -25,6 +25,8 @@
                 <td>{{ $stat['total'] }}</td>
                 <td>{{ $stat['alive'] }}</td>
                 <td>{{ $stat['survival_rate'] }}%</td>
+                
+
             </tr>
             @endforeach
         </tbody>

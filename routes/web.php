@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\StatsController;
-
+use App\Filament\Pages\VendorProfile;
 
 Route::get('/', [UploadController::class, 'form'])->name('upload.form');
 Route::post('/upload', [UploadController::class, 'store'])->name('upload.store');
@@ -15,4 +15,4 @@ Route::post('/upload/{upload}/geo-prices', [UploadController::class, 'applyGeoPr
 Route::get('/stats/vendors', [StatsController::class, 'vendorStats'])->name('stats.vendors');
 Route::get('/stats/invites', [StatsController::class, 'inviteStats'])->name('stats.invites');
 
-Route::get('/vendor/{vendor}/profile', [StatsController::class, 'vendorProfile'])->name('vendor.profile');
+Route::get('/admin/vendor/{vendorId}/profile', VendorProfile::class)->name('vendor.profile');

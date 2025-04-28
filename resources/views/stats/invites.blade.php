@@ -10,20 +10,34 @@
         <thead>
             <tr>
                 <th>Продавец</th>
-                <th>Аккаунтов с инвайтами</th>
-                <th>Инвайтов всего</th>
-                <th>Потрачено</th>
-                <th>Средняя цена инвайта</th>
+                <th>Номер</th>
+                <th>GEO</th>
+                <th>Спам</th>
+                <th>Тип</th>
+                <th>Инвайты</th>
+                <th>Цена</th>
+                <th>Создан</th>
+                <th>Последний вход</th>
             </tr>
         </thead>
         <tbody>
-            @foreach($stats as $stat)
+            @foreach ($accounts as $acc)
                 <tr>
-                    <td>{{ $stat['vendor'] }}</td>
-                    <td>{{ $stat['accounts_used'] }}</td>
-                    <td>{{ $stat['invites'] }}</td>
-                    <td>${{ number_format($stat['spent'], 2) }}</td>
-                    <td>${{ number_format($stat['avg_per_invite'], 4) }}</td>
+                    <td>{{ $acc->vendor->name ?? '—' }}</td>
+                    <td>{{ $acc->phone }}</td>
+                    <td>{{ $acc->geo }}</td>
+                    <td>{{ $acc->spamblock ?? '-' }}</td>
+                    <td>
+                        @if ($acc->spamblock === 'free')
+                            🟢 clean
+                        @else
+                            🔴 spam
+                        @endif
+                    </td>
+                    <td>{{ $acc->stats_invites_count }}</td>
+                    <td>${{ number_format($acc->price, 2) }}</td>
+                    <td>{{ $acc->session_created_at }}</td>
+                    <td>{{ $acc->last_connect_at ?? '—' }}</td>
                 </tr>
             @endforeach
         </tbody>
