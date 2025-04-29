@@ -54,7 +54,7 @@ class AccountResource extends Resource
 
                 TextColumn::make('price')
                     ->label('Цена')
-                    ->money('usd')
+                    ->money('rub')
                     ->sortable(),
 
                 TextColumn::make('vendor.name')
