@@ -18,7 +18,7 @@ class VendorResource extends Resource
     protected static ?string $model = Vendor::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
-    protected static ?string $navigationLabel = 'Продавцы';
+    protected static ?string $navigationLabel = 'Статистика выживаемости';
     protected static ?string $navigationGroup = 'Управление';
 
     public static function table(Tables\Table $table): Tables\Table
