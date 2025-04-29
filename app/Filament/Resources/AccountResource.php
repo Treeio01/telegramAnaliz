@@ -101,7 +101,7 @@ class AccountResource extends Resource
 
                 SelectFilter::make('vendor_id')
                     ->label('Фильтр по продавцу')
-                    ->relationship('vendor', 'name'),
+                    ->relationship('vendor', 'name')->searchable(),
 
                 SelectFilter::make('spamblock')
                     ->label('Фильтр по типу')
