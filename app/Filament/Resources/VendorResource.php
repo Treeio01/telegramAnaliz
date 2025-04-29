@@ -39,48 +39,87 @@ class VendorResource extends Resource
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
-                    ->sortable()->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
+                    ->sortable()
+                    ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
 
                 TextColumn::make('accounts_count')
                     ->label('Всего аккаунтов')
                     ->sortable(),
 
-                TextColumn::make('alive_accounts_count')
-                    ->label('Живых аккаунтов')
-                    ->sortable(),
+                TextColumn::make('valid_accounts_count')
+                    ->label('Валид акк')
+                    ->state(function (Vendor $record) {
+                        // Валидные аккаунты: spamblock = 'free'
+                        return $record->accounts()->where('spamblock', 'free')->count();
+                    }),
 
                 TextColumn::make('dead_accounts_count')
                     ->label('Мёртвых аккаунтов')
                     ->state(function (Vendor $record) {
+                        // Мёртвые аккаунты: spamblock != 'free'
                         $total = $record->accounts_count ?? 0;
-                        $alive = $record->alive_accounts_count ?? 0;
-                        return $total - $alive;
+                        $valid = $record->accounts()->where('spamblock', 'free')->count();
+                        return $total - $valid;
                     }),
 
-                TextColumn::make('avg_invites')
-                    ->label('Среднее кол-во инвайтов')
+                TextColumn::make('spam_accounts_count')
+                    ->label('Спам акк')
                     ->state(function (Vendor $record) {
-                        $avg = $record->accounts()->avg('stats_invites_count');
-                        return $avg ? round($avg, 2) : 0;
+                        // Все аккаунты, у которых stats_spam_count > 0
+                        return $record->accounts()->where('stats_spam_count', '>', 0)->count();
                     }),
-                    // Убираем sortable(), чтобы не было ошибки SQL
 
-                TextColumn::make('survival_rate')
-                    ->label('Выживаемость (%)')
+                TextColumn::make('spam_valid_accounts_count')
+                    ->label('Спамм валид акк')
                     ->state(function (Vendor $record) {
-                        $alive = $record->accounts()->where('spamblock', 'free')->count();
+                        // Валидные аккаунты, у которых stats_spam_count > 0
+                        return $record->accounts()->where('spamblock', 'free')->where('stats_spam_count', '>', 0)->count();
+                    }),
+
+                TextColumn::make('spam_dead_accounts_count')
+                    ->label('Спам мертв акк')
+                    ->state(function (Vendor $record) {
+                        // Мертвые аккаунты, у которых stats_spam_count > 0
+                        return $record->accounts()->where('spamblock', '!=', 'free')->where('stats_spam_count', '>', 0)->count();
+                    }),
+
+                TextColumn::make('spam_percent_accounts')
+                    ->label('Спам % акк')
+                    ->state(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
+                        if ($total === 0) return 0;
+                        $spam = $record->accounts()->where('stats_spam_count', '>', 0)->count();
+                        return round(($spam / $total) * 100, 2);
+                    }),
 
-                        if ($total === 0) {
-                            return 0;
-                        }
+                TextColumn::make('clean_accounts_count')
+                    ->label('Чист акк')
+                    ->state(function (Vendor $record) {
+                        // Все аккаунты, у которых stats_spam_count = 0
+                        return $record->accounts()->where('stats_spam_count', 0)->count();
+                    }),
 
-                        return round(($alive / $total) * 100, 2);
-                    })
-                    ->color(fn($state) => match (true) {
-                        $state < 50 => 'danger',
-                        $state < 80 => 'warning',
-                        default => 'success',
+                TextColumn::make('clean_valid_accounts_count')
+                    ->label('Чист валид акк')
+                    ->state(function (Vendor $record) {
+                        // Валидные аккаунты, у которых stats_spam_count = 0
+                        return $record->accounts()->where('spamblock', 'free')->where('stats_spam_count', 0)->count();
+                    }),
+
+                TextColumn::make('clean_dead_accounts_count')
+                    ->label('Чист мертв акк')
+                    ->state(function (Vendor $record) {
+                        // Мертвые аккаунты, у которых stats_spam_count = 0
+                        return $record->accounts()->where('spamblock', '!=', 'free')->where('stats_spam_count', 0)->count();
+                    }),
+
+                TextColumn::make('clean_percent_accounts')
+                    ->label('Чист %')
+                    ->state(function (Vendor $record) {
+                        $total = $record->accounts_count ?? 0;
+                        if ($total === 0) return 0;
+                        $clean = $record->accounts()->where('stats_spam_count', 0)->count();
+                        return round(($clean / $total) * 100, 2);
                     }),
             ])
             ->filters([
@@ -154,21 +193,21 @@ class VendorResource extends Resource
                         return $query;
                     }),
 
-                Filter::make('created_at_range')
+                Filter::make('session_created_at_range')
                     ->form([
-                        \Filament\Forms\Components\DatePicker::make('created_from')
-                            ->label('Дата от'),
-                        \Filament\Forms\Components\DatePicker::make('created_to')
-                            ->label('Дата до'),
+                        \Filament\Forms\Components\DatePicker::make('session_created_from')
+                            ->label('Сессия от'),
+                        \Filament\Forms\Components\DatePicker::make('session_created_to')
+                            ->label('Сессия до'),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if (!empty($data['created_from']) || !empty($data['created_to'])) {
+                        if (!empty($data['session_created_from']) || !empty($data['session_created_to'])) {
                             $query->whereHas('accounts', function ($q) use ($data) {
-                                if (!empty($data['created_from'])) {
-                                    $q->whereDate('created_at', '>=', $data['created_from']);
+                                if (!empty($data['session_created_from'])) {
+                                    $q->whereDate('session_created_at', '>=', $data['session_created_from']);
                                 }
-                                if (!empty($data['created_to'])) {
-                                    $q->whereDate('created_at', '<=', $data['created_to']);
+                                if (!empty($data['session_created_to'])) {
+                                    $q->whereDate('session_created_at', '<=', $data['session_created_to']);
                                 }
                             });
                         }
