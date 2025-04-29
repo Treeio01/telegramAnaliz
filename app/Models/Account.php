@@ -31,6 +31,7 @@ class Account extends Model
         'is_premium',
         'price',
         'type',
+        
     ];
 
     /**

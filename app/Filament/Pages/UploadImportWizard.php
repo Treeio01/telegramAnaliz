@@ -48,7 +48,8 @@ class UploadImportWizard extends Page
             $jsonPath = $extractPath . '/' . $file;
             $json = json_decode(file_get_contents($jsonPath), true);
 
-            $data = $this->type === 'dead' && isset($json['api_data']) ? $json['api_data'] : $json;
+            $isDead = isset($json['api_data']);
+            $data = $isDead ? $json['api_data'] : $json;
 
             $phone = $data['phone'] ?? null;
             if (!$phone) continue;
@@ -70,6 +71,7 @@ class UploadImportWizard extends Page
                 'session_created_date' => $data['session_created_date'] ?? null,
                 'last_connect_date' => $data['last_connect_date'] ?? null,
                 'stats_invites_count' => $data['stats_invites_count'] ?? 0,
+                'type' => $isDead ? 'dead' : 'alive',
             ];
         }
 

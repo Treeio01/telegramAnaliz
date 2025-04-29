@@ -80,7 +80,7 @@ class UploadAssignGeoPricesPage extends Page
                 'stats_invites_count' => isset($data['stats_invites_count']) ? (int)$data['stats_invites_count'] : 0,
                 'is_premium' => isset($data['is_premium']) ? (int)$data['is_premium'] : 0,
                 'price' => isset($this->geoPrices[$data['geo']]) ? $this->geoPrices[$data['geo']] : null,
-                'type' => $type ?? null,
+                'type' => $data['type'],
             ]);
         }
 
