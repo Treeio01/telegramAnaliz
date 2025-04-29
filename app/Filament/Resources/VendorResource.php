@@ -47,14 +47,14 @@ class VendorResource extends Resource
                     ->sortable(),
 
                 TextColumn::make('valid_accounts_count')
-                    ->label('Валид акк')
+                    ->label('Валид')
                     ->state(function (Vendor $record) {
                         // Валидные аккаунты: spamblock = 'free'
                         return $record->accounts()->where('spamblock', 'free')->count();
                     }),
 
                 TextColumn::make('dead_accounts_count')
-                    ->label('Мёртвых аккаунтов')
+                    ->label('Невалид')
                     ->state(function (Vendor $record) {
                         // Мёртвые аккаунты: spamblock != 'free'
                         $total = $record->accounts_count ?? 0;
@@ -63,28 +63,28 @@ class VendorResource extends Resource
                     }),
 
                 TextColumn::make('spam_accounts_count')
-                    ->label('Спам акк')
+                    ->label('spam')
                     ->state(function (Vendor $record) {
                         // Все аккаунты, у которых stats_spam_count > 0
                         return $record->accounts()->where('stats_spam_count', '>', 0)->count();
                     }),
 
                 TextColumn::make('spam_valid_accounts_count')
-                    ->label('Спамм валид акк')
+                    ->label('СпамV')
                     ->state(function (Vendor $record) {
                         // Валидные аккаунты, у которых stats_spam_count > 0
                         return $record->accounts()->where('spamblock', 'free')->where('stats_spam_count', '>', 0)->count();
                     }),
 
                 TextColumn::make('spam_dead_accounts_count')
-                    ->label('Спам мертв акк')
+                    ->label('СпамM')
                     ->state(function (Vendor $record) {
                         // Мертвые аккаунты, у которых stats_spam_count > 0
                         return $record->accounts()->where('spamblock', '!=', 'free')->where('stats_spam_count', '>', 0)->count();
                     }),
 
                 TextColumn::make('spam_percent_accounts')
-                    ->label('Спам % акк')
+                    ->label('Спам %')
                     ->state(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 0;
@@ -93,28 +93,28 @@ class VendorResource extends Resource
                     }),
 
                 TextColumn::make('clean_accounts_count')
-                    ->label('Чист акк')
+                    ->label('Чист')
                     ->state(function (Vendor $record) {
                         // Все аккаунты, у которых stats_spam_count = 0
                         return $record->accounts()->where('stats_spam_count', 0)->count();
                     }),
 
                 TextColumn::make('clean_valid_accounts_count')
-                    ->label('Чист валид акк')
+                    ->label('ЧистV')
                     ->state(function (Vendor $record) {
                         // Валидные аккаунты, у которых stats_spam_count = 0
                         return $record->accounts()->where('spamblock', 'free')->where('stats_spam_count', 0)->count();
                     }),
 
                 TextColumn::make('clean_dead_accounts_count')
-                    ->label('Чист мертв акк')
+                    ->label('ЧистM')
                     ->state(function (Vendor $record) {
                         // Мертвые аккаунты, у которых stats_spam_count = 0
                         return $record->accounts()->where('spamblock', '!=', 'free')->where('stats_spam_count', 0)->count();
                     }),
 
                 TextColumn::make('clean_percent_accounts')
-                    ->label('Чист %')
+                    ->label('Чист%')
                     ->state(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 0;
