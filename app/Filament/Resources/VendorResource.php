@@ -148,7 +148,28 @@ class VendorResource extends Resource
                         if (!empty($data['geo'])) {
                             $geo = $data['geo'];
                             $query->whereHas('accounts', function ($q) use ($geo) {
-                                $q->where('geo', $geo);
+                                $q->whereIn('geo', $geo);
+                            });
+                        }
+                        return $query;
+                    }),
+
+                Filter::make('created_at_range')
+                    ->form([
+                        \Filament\Forms\Components\DatePicker::make('created_from')
+                            ->label('Дата от'),
+                        \Filament\Forms\Components\DatePicker::make('created_to')
+                            ->label('Дата до'),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['created_from']) || !empty($data['created_to'])) {
+                            $query->whereHas('accounts', function ($q) use ($data) {
+                                if (!empty($data['created_from'])) {
+                                    $q->whereDate('created_at', '>=', $data['created_from']);
+                                }
+                                if (!empty($data['created_to'])) {
+                                    $q->whereDate('created_at', '<=', $data['created_to']);
+                                }
                             });
                         }
                         return $query;
