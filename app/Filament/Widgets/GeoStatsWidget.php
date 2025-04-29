@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use Filament\Widgets\ChartWidget;
 use App\Models\Account;
+use Livewire\Attributes\On;
 
 class GeoStatsWidget extends ChartWidget
 {
@@ -18,7 +19,7 @@ class GeoStatsWidget extends ChartWidget
     {
         // Получаем статистику по GEO
         $stats = Account::selectRaw('geo, COUNT(*) as count')
-            ->where('vendor_id', $this->vendorId)
+            ->where('vendor_id', request()->route('vendorId')) // получаем ID из URL
             ->whereNotNull('geo')
             ->groupBy('geo')
             ->pluck('count', 'geo')

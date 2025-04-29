@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\AccountsStatsWidget;
 use App\Models\Vendor;
 use App\Models\Account;
 use Filament\Pages\Page;
@@ -18,6 +19,7 @@ use Filament\Tables\Table;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Widgets\Widget;
+use App\Filament\Widgets\GeoStatsWidget;
 
 class VendorProfile extends Page implements HasTable
 {
@@ -65,12 +67,9 @@ class VendorProfile extends Page implements HasTable
 
     public function getWidgets(): array
     {
-        // Здесь предполагается, что у вас есть отдельный класс виджета GeoStatsWidget
-        // Если его нет, создайте его в app/Filament/Widgets/GeoStatsWidget.php
-        // и реализуйте там всю логику отображения статистики по GEO
         return [
-            \App\Filament\Widgets\GeoStatsWidget::class,
-            \App\Filament\Widgets\AccountsStatsWidget::class,
+            GeoStatsWidget::make(['vendorId' => $this->vendor->id]),
+            AccountsStatsWidget::make(['vendorId' => $this->vendor->id])
         ];
     }
 

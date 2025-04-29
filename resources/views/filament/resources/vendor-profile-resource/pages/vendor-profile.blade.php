@@ -24,12 +24,11 @@
         </div>
     </x-filament::card>
     <div class="flex flex-row">
-        <div class="max-w-xs mx-auto">
-            @livewire(\App\Filament\Widgets\GeoStatsWidget::class, ['vendorId' => $vendor->id], key('geo-stats-widget-'.$vendor->id))
-        </div>
-        <div class="max-w-xs mx-auto">
-            @livewire(\App\Filament\Widgets\AccountsStatsWidget::class, ['vendorId' => $vendor->id], key('accounts-stats-widget-'.$vendor->id))
-        </div>
+        @foreach ($this->getWidgets() as $widget)
+        @livewire($widget::class, ['vendorId' => $this->vendor->id], key($widget::class))
+        @endforeach
     </div>
     {{ $this->table }}
+
+
 </x-filament::page>
