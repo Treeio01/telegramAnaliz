@@ -65,13 +65,6 @@ class VendorProfile extends Page implements HasTable
         return $query->get();
     }
 
-    public function getWidgets(): array
-    {
-        return [
-            GeoStatsWidget::make(['vendorId' => $this->vendor->id]),
-            AccountsStatsWidget::make(['vendorId' => $this->vendor->id])
-        ];
-    }
 
     // Исправим метод, чтобы он возвращал массив статистики по GEO
     public function getGeoStats(): array
