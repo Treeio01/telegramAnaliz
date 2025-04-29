@@ -45,6 +45,18 @@ class VendorResource extends Resource
                     ->label('Всего аккаунтов')
                     ->sortable(),
 
+                TextColumn::make('alive_accounts_count')
+                    ->label('Живых аккаунтов')
+                    ->sortable(),
+
+                TextColumn::make('dead_accounts_count')
+                    ->label('Мёртвых аккаунтов')
+                    ->state(function (Vendor $record) {
+                        $total = $record->accounts_count ?? 0;
+                        $alive = $record->alive_accounts_count ?? 0;
+                        return $total - $alive;
+                    }),
+
                 TextColumn::make('avg_invites')
                     ->label('Среднее кол-во инвайтов')
                     ->state(function (Vendor $record) {
