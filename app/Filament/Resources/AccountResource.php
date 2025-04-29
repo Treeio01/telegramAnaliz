@@ -48,6 +48,19 @@ class AccountResource extends Resource
                         return $state === 'free' ? 'Clean' : 'Spam';
                     })->badge(),
 
+                TextColumn::make('type')
+                    ->label('Статус')
+                    ->sortable()
+                    ->searchable()
+                    ->formatStateUsing(function ($state) {
+                        return $state === 'valid' ? 'Живой' : ($state === 'invalid' ? 'Мёртвый' : $state);
+                    })
+                    ->badge()
+                    ->colors([
+                        'success' => fn($state) => $state === 'valid',
+                        'danger' => fn($state) => $state === 'invalid',
+                    ]),
+
                 TextColumn::make('stats_invites_count')
                     ->label('Инвайты')
                     ->sortable(),
