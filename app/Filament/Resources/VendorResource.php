@@ -20,6 +20,8 @@ class VendorResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
     protected static ?string $navigationLabel = 'Статистика выживаемости';
     protected static ?string $navigationGroup = 'Управление';
+    protected static ?string $title = 'Статистика выживаемости';
+    
 
     public static function table(Tables\Table $table): Tables\Table
     {
@@ -55,12 +57,12 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND spamblock = "free"
+                                AND type = "alive"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('spamblock', 'free')->count();
+                        return $record->accounts()->where('type', 'alive')->count();
                     }),
 
                 TextColumn::make('dead_accounts_count')
@@ -68,26 +70,23 @@ class VendorResource extends Resource
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw('
                             (
-                                (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id)
-                                - 
-                                (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id AND spamblock = "free")
+                                SELECT COUNT(*) FROM accounts 
+                                WHERE accounts.vendor_id = vendors.id 
+                                AND type = "dead"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        $valid = $record->accounts()->where('spamblock', 'free')->count();
-                        return $total - $valid;
+                        return $record->accounts()->where('type', 'dead')->count();
                     }),
 
                 TextColumn::make('spam_accounts_count')
-                    ->label('spam')
+                    ->label('Спам')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw('
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND stats_spam_count > 0
                                 AND spamblock != "free"
                             ) ' . $direction
                         );
@@ -105,13 +104,16 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND spamblock = "free" 
-                                AND stats_spam_count > 0
+                                AND type = "alive" 
+                                AND spamblock != "free"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('spamblock', 'free')->where('stats_spam_count', '>', 0)->count();
+                        return $record->accounts()
+                            ->where('type', 'alive')
+                            ->where('spamblock', '!=', 'free')
+                            ->count();
                     }),
 
                 TextColumn::make('spam_dead_accounts_count')
@@ -121,13 +123,16 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND spamblock != "free" 
-                                AND stats_spam_count > 0
+                                AND type = "dead" 
+                                AND spamblock != "free"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('spamblock', '!=', 'free')->where('stats_spam_count', '>', 0)->count();
+                        return $record->accounts()
+                            ->where('type', 'dead')
+                            ->where('spamblock', '!=', 'free')
+                            ->count();
                     }),
 
                 TextColumn::make('spam_percent_accounts')
@@ -140,15 +145,27 @@ class VendorResource extends Resource
                                     SELECT (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id))
                                     FROM accounts 
                                     WHERE accounts.vendor_id = vendors.id 
-                                    AND stats_spam_count > 0
+                                    AND spamblock != "free"
                                 )
                             END ' . $direction
                         );
+                    })->color(function (Vendor $record) {
+                        $total = $record->accounts_count ?? 0;
+                        if ($total === 0) return 'gray';
+                        $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
+                        $percent = round(($spam / $total) * 100, 2);
+                        if ($percent > 75) {
+                            return 'danger';
+                        } elseif ($percent > 25) {
+                            return 'warning'; // оранжевое
+                        } else {
+                            return 'success';
+                        }
                     })
                     ->state(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 0;
-                        $spam = $record->accounts()->where('stats_spam_count', '>', 0)->count();
+                        $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
                         return round(($spam / $total) * 100, 2);
                     }),
 
@@ -159,12 +176,12 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND stats_spam_count = 0
+                                AND spamblock = "free"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('stats_spam_count', 0)->count();
+                        return $record->accounts()->where('spamblock', 'free')->count();
                     }),
 
                 TextColumn::make('clean_valid_accounts_count')
@@ -174,13 +191,16 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND spamblock = "free" 
-                                AND stats_spam_count = 0
+                                AND type = "alive" 
+                                AND spamblock = "free"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('spamblock', 'free')->where('stats_spam_count', 0)->count();
+                        return $record->accounts()
+                            ->where('type', 'alive')
+                            ->where('spamblock', 'free')
+                            ->count();
                     }),
 
                 TextColumn::make('clean_dead_accounts_count')
@@ -190,13 +210,16 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND spamblock != "free" 
-                                AND stats_spam_count = 0
+                                AND type = "dead" 
+                                AND spamblock = "free"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('spamblock', '!=', 'free')->where('stats_spam_count', 0)->count();
+                        return $record->accounts()
+                            ->where('type', 'dead')
+                            ->where('spamblock', 'free')
+                            ->count();
                     }),
 
                 TextColumn::make('clean_percent_accounts')
@@ -209,15 +232,27 @@ class VendorResource extends Resource
                                     SELECT (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id))
                                     FROM accounts 
                                     WHERE accounts.vendor_id = vendors.id 
-                                    AND stats_spam_count = 0
+                                    AND spamblock = "free"
                                 )
                             END ' . $direction
                         );
+                    })->color(function (Vendor $record) {
+                        $total = $record->accounts_count ?? 0;
+                        if ($total === 0) return 'gray';
+                        $clean = $record->accounts()->where('spamblock', 'free')->count();
+                        $percent = round(($clean / $total) * 100, 2);
+                        if ($percent < 25) {
+                            return 'danger';
+                        } elseif ($percent < 75) {
+                            return 'warning'; // оранжевое
+                        } else {
+                            return 'success';
+                        }
                     })
                     ->state(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 0;
-                        $clean = $record->accounts()->where('stats_spam_count', 0)->count();
+                        $clean = $record->accounts()->where('spamblock', 'free')->count();
                         return round(($clean / $total) * 100, 2);
                     }),
             ])
