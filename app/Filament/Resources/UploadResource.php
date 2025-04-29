@@ -11,7 +11,10 @@ use Filament\Resources\Resource;
 class UploadResource extends Resource
 {
     protected static ?string $model = Upload::class;
-
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
     protected static ?string $navigationIcon = 'heroicon-o-cloud-arrow-up';
     protected static ?string $navigationLabel = 'Загрузка архивов';
     protected static ?string $navigationGroup = 'Управление';
@@ -28,7 +31,7 @@ class UploadResource extends Resource
                     ->directory('uploads')
                     ->preserveFilenames()
                     ->visibility('private')
-                    ->mutateDehydratedStateUsing(fn ($state) => $state ? 'uploads/' . $state : null), // <-- добавили это
+                    ->mutateDehydratedStateUsing(fn($state) => $state ? 'uploads/' . $state : null), // <-- добавили это
                 Forms\Components\Select::make('type')
                     ->label('Тип архива')
                     ->options([
