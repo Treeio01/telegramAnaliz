@@ -17,6 +17,7 @@ class Vendor extends Model
      */
     protected $fillable = [
         'name',
+        'del_user'
     ];
 
     public function accounts()

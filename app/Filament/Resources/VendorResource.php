@@ -13,6 +13,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
 use App\Models\GeoPreset;
+
 class VendorResource extends Resource
 {
     protected static ?string $model = Vendor::class;
@@ -268,6 +269,10 @@ class VendorResource extends Resource
                         $clean = $record->accounts()->where('spamblock', 'free')->count();
                         return round(($clean / $total) * 100, 2);
                     }),
+                Tables\Columns\CheckboxColumn::make('del_user')
+                    ->label('del_user')
+                    ->sortable()
+
             ])
             ->filters([
                 Filter::make('min_accounts')
@@ -383,6 +388,11 @@ class VendorResource extends Resource
                     ->label('Имя продавца')
                     ->required()
                     ->maxLength(255),
+                // Добавляем чекбокс в форму, если требуется
+                \Filament\Forms\Components\Checkbox::make('del_user')
+                    ->label('Удалить пользователя')
+                    ->default(false)
+                    ->helperText('Отметьте для удаления пользователя'),
             ]);
     }
 

@@ -15,32 +15,62 @@ class UploadImportWizard extends Page
     protected static ?string $navigationLabel = 'Импорт аккаунтов';
     protected static ?string $navigationGroup = 'Управление';
 
-    public $zipFiles = [];
-    public $type = 'valid'; // default
+    public $validZipFiles = [];
+    public $deadZipFiles = [];
 
     public function updated($propertyName)
     {
-        // Для поддержки Livewire: если zipFiles обновились, убедимся, что это массив
-        if ($propertyName === 'zipFiles' && !is_array($this->zipFiles)) {
-            $this->zipFiles = [$this->zipFiles];
+        // Для поддержки Livewire: убедимся, что это массивы
+        if ($propertyName === 'validZipFiles' && !is_array($this->validZipFiles)) {
+            $this->validZipFiles = [$this->validZipFiles];
+        }
+        if ($propertyName === 'deadZipFiles' && !is_array($this->deadZipFiles)) {
+            $this->deadZipFiles = [$this->deadZipFiles];
         }
     }
 
     public function submit()
     {
+        \Log::info('validZipFiles', [$this->validZipFiles]);
+        \Log::info('deadZipFiles', [$this->deadZipFiles]);
         $this->validate([
-            'zipFiles' => 'required|array|min:1',
-            'zipFiles.*' => 'file|mimes:zip',
-            'type' => 'required|in:valid,dead',
+            'validZipFiles.*' => 'nullable|file|mimes:zip',
+            'deadZipFiles.*' => 'nullable|file|mimes:zip',
         ]);
 
         $allNormalizedAccounts = [];
         $allGeoWithMissingPrices = [];
         $originalNames = [];
 
-        foreach ($this->zipFiles as $zipFile) {
-            $tempPath = $zipFile->getRealPath();
+        // Обработка живых аккаунтов
+        if (!empty($this->validZipFiles)) {
+            $this->processFiles($this->validZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'valid');
+        }
 
+        // Обработка мертвых аккаунтов
+        if (!empty($this->deadZipFiles)) {
+            $this->processFiles($this->deadZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'dead');
+        }
+
+        // Убираем дубликаты гео
+        $allGeoWithMissingPrices = array_unique($allGeoWithMissingPrices);
+
+        $upload = \App\Models\Upload::create([
+            'type' => 'mixed', // теперь тип mixed, так как могут быть оба типа
+            'meta' => ['original_name' => implode(', ', $originalNames)],
+        ]);
+
+        session()->put("upload_data_{$upload->id}", $allNormalizedAccounts);
+        session()->put("geo_list_for_upload_{$upload->id}", $allGeoWithMissingPrices);
+        session()->put("upload_type_{$upload->id}", 'mixed');
+
+        return redirect('/admin/upload-assign-geo-prices?uploadId=' . $upload->id);
+    }
+
+    private function processFiles($files, &$allNormalizedAccounts, &$allGeoWithMissingPrices, &$originalNames, $type)
+    {
+        foreach ($files as $zipFile) {
+            $tempPath = $zipFile->getRealPath();
             $extractPath = storage_path('app/tmp/' . (string) Str::uuid());
             mkdir($extractPath, 0755, true);
 
@@ -52,7 +82,6 @@ class UploadImportWizard extends Page
             $zip->extractTo($extractPath);
             $zip->close();
 
-            // Парсим JSON
             $files = array_filter(scandir($extractPath), fn($f) => str_ends_with($f, '.json'));
             $geoWithMissingPrices = [];
             $normalizedAccounts = [];
@@ -61,8 +90,8 @@ class UploadImportWizard extends Page
                 $jsonPath = $extractPath . '/' . $file;
                 $json = json_decode(file_get_contents($jsonPath), true);
 
-                $isDead = isset($json['api_data']);
-                $data = $isDead ? $json['api_data'] : $json;
+                // Проверяем наличие api_data и извлекаем данные соответственно
+                $data = isset($json['api_data']) ? $json['api_data'] : $json;
 
                 $phone = $data['phone'] ?? null;
                 if (!$phone) continue;
@@ -84,7 +113,7 @@ class UploadImportWizard extends Page
                     'session_created_date' => $data['session_created_date'] ?? null,
                     'last_connect_date' => $data['last_connect_date'] ?? null,
                     'stats_invites_count' => $data['stats_invites_count'] ?? 0,
-                    'type' => $isDead ? 'dead' : 'alive',
+                    'type' => $type, // Используем тип из параметра функции, независимо от формата данных
                 ];
             }
 
@@ -92,23 +121,8 @@ class UploadImportWizard extends Page
             $allGeoWithMissingPrices = array_merge($allGeoWithMissingPrices, array_keys($geoWithMissingPrices));
             $originalNames[] = $zipFile->getClientOriginalName();
 
-            // Удаляем архив после обработки
             Storage::disk('local')->delete($tempPath);
         }
-
-        // Убираем дубликаты гео
-        $allGeoWithMissingPrices = array_unique($allGeoWithMissingPrices);
-
-        $upload = \App\Models\Upload::create([
-            'type' => $this->type,
-            'meta' => ['original_name' => implode(', ', $originalNames)],
-        ]);
-
-        session()->put("upload_data_{$upload->id}", $allNormalizedAccounts);
-        session()->put("geo_list_for_upload_{$upload->id}", $allGeoWithMissingPrices);
-        session()->put("upload_type_{$upload->id}", $this->type);
-
-        return redirect('/admin/upload-assign-geo-prices?uploadId=' . $upload->id);
     }
 
     protected static string $view = 'filament.pages.upload-import-wizard';

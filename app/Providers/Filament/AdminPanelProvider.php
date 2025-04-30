@@ -19,12 +19,16 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Filament\Pages\UploadAssignGeoPricesPage;
 use App\Filament\Pages\UploadImportWizard;
+use Filament\Support\Enums\MaxWidth;
+
 
 class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
         return $panel
+            ->maxContentWidth(MaxWidth::Full)
+            ->sidebarFullyCollapsibleOnDesktop()
             ->default()
             ->id('admin')
             ->path('admin')
