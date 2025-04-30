@@ -69,7 +69,7 @@ class CreateUploadWithAssignPrices extends CreateRecord
 
         session()->put("upload_data_{$record->id}", $normalizedAccounts);
         session()->put("geo_list_for_upload_{$record->id}", array_keys($geoWithMissingPrices));
-        session()->put("upload_type_{$record->id}", $type);
+        
 
         // сохраняем кастомный редирект
         $this->customRedirectUrl = '/admin/upload-assign-geo-prices?uploadId=' . $record->id;

@@ -16,6 +16,8 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Actions\Action;
 use App\Models\AccountList;
+use Filament\Forms\Components\Select;
+use App\Models\GeoPreset;
 
 class AccountResource extends Resource
 {
@@ -99,18 +101,37 @@ class AccountResource extends Resource
                             ->when($data['created_until'], fn($q) => $q->whereDate('session_created_at', '<=', $data['created_until']));
                     }),
 
-                SelectFilter::make('geo')
-                    ->label('Фильтр по GEO')
-                    ->searchable()
-                    ->multiple()
-                    ->options(
-                        Account::query()
-                            ->whereNotNull('geo')
-                            ->distinct()
-                            ->orderBy('geo')
-                            ->pluck('geo', 'geo')
-                            ->toArray()
-                    ),
+                    Filter::make('geo')
+                    ->form([
+                        Select::make('preset')
+                            ->label('Пресет GEO')
+                            ->options(GeoPreset::pluck('name', 'id'))
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if ($state) {
+                                    $preset = GeoPreset::find($state);
+                                    if ($preset) {
+                                        $set('geo', $preset->geos);
+                                    }
+                                }
+                            }),
+                        
+                        Select::make('geo')
+                            ->label('GEO')
+                            ->multiple()
+                            ->searchable()
+                            ->options(
+                                Account::query()
+                                    ->whereNotNull('geo')
+                                    ->distinct()
+                                    ->pluck('geo', 'geo')
+                                    ->toArray()
+                            )
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['geo'])) {
+                            $query->whereIn('geo', $data['geo']);
+                        }
+                    }),
 
                 SelectFilter::make('vendor_id')
                     ->label('Фильтр по продавцу')

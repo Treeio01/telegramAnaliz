@@ -12,7 +12,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
-
+use App\Models\GeoPreset;
 class VendorResource extends Resource
 {
     protected static ?string $model = Vendor::class;
@@ -21,7 +21,7 @@ class VendorResource extends Resource
     protected static ?string $navigationLabel = 'Статистика выживаемости';
     protected static ?string $navigationGroup = 'Управление';
     protected static ?string $title = 'Статистика выживаемости';
-    
+
 
     public static function table(Tables\Table $table): Tables\Table
     {
@@ -38,6 +38,9 @@ class VendorResource extends Resource
 
 
             ->columns([
+                TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable(),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
@@ -53,7 +56,8 @@ class VendorResource extends Resource
                 TextColumn::make('valid_accounts_count')
                     ->label('Валид')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -68,7 +72,8 @@ class VendorResource extends Resource
                 TextColumn::make('dead_accounts_count')
                     ->label('Невалид')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -83,7 +88,8 @@ class VendorResource extends Resource
                 TextColumn::make('spam_accounts_count')
                     ->label('Спам')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -100,7 +106,8 @@ class VendorResource extends Resource
                 TextColumn::make('spam_valid_accounts_count')
                     ->label('СпамV')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -119,7 +126,8 @@ class VendorResource extends Resource
                 TextColumn::make('spam_dead_accounts_count')
                     ->label('СпамM')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -138,7 +146,8 @@ class VendorResource extends Resource
                 TextColumn::make('spam_percent_accounts')
                     ->label('Спам %')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             CASE 
                                 WHEN (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id) = 0 THEN 0
                                 ELSE (
@@ -172,7 +181,8 @@ class VendorResource extends Resource
                 TextColumn::make('clean_accounts_count')
                     ->label('Чист')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -187,7 +197,8 @@ class VendorResource extends Resource
                 TextColumn::make('clean_valid_accounts_count')
                     ->label('ЧистV')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -206,7 +217,8 @@ class VendorResource extends Resource
                 TextColumn::make('clean_dead_accounts_count')
                     ->label('ЧистM')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
@@ -225,7 +237,8 @@ class VendorResource extends Resource
                 TextColumn::make('clean_percent_accounts')
                     ->label('Чист%')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
+                        return $query->orderByRaw(
+                            '
                             CASE 
                                 WHEN (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id) = 0 THEN 0
                                 ELSE (
@@ -305,6 +318,16 @@ class VendorResource extends Resource
 
                 Filter::make('geo')
                     ->form([
+                        Select::make('preset')
+                            ->label('Гео пресет')
+                            ->options(GeoPreset::pluck('name', 'id'))
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if ($state) {
+                                    $preset = GeoPreset::find($state);
+                                    $set('geo', $preset->geos);
+                                }
+                            }), 
+
                         Select::make('geo')
                             ->label('Гео')
                             ->multiple()
@@ -348,8 +371,8 @@ class VendorResource extends Resource
                         return $query;
                     }),
 
-            ])
-            ->defaultSort('id', 'desc');
+            ]);
+            
     }
 
     public static function form(Forms\Form $form): Forms\Form
