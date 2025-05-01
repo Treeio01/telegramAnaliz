@@ -20,7 +20,10 @@ use App\Models\TempAccount;
 class UploadProfile extends Page implements HasTable
 {
     use Tables\Concerns\InteractsWithTable;
-
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
     protected static string $view = 'filament.pages.upload-profile';
     public $uploadId;
     public Upload $upload;
