@@ -16,3 +16,5 @@ Route::get('/stats/vendors', [StatsController::class, 'vendorStats'])->name('sta
 Route::get('/stats/invites', [StatsController::class, 'inviteStats'])->name('stats.invites');
 
 Route::get('/admin/vendor/{vendorId}/profile', VendorProfile::class)->name('vendor.profile');
+
+Route::get('/upload/{id}/profile', \App\Filament\Pages\UploadProfile::class)->name('filament.pages.upload-profile');

@@ -33,9 +33,4 @@
         </form>
     </x-filament::card>
 
-    @if(session()->has("upload_data_{$uploadId}"))
-    <x-filament::card>
-        {{ $this->table }}
-    </x-filament::card>
-    @endif
 </x-filament::page>
