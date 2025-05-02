@@ -138,8 +138,9 @@ class UploadProfile extends Page implements HasTable
                         return round(($spam / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
+                        // Исправленная сортировка: процент спам-валидных аккаунтов от всех спам-аккаунтов
                         return $query->orderByRaw(
-                            "CASE WHEN temp_accounts_count = 0 THEN 0 ELSE (spam_accounts_count * 100.0 / temp_accounts_count) END $direction"
+                            "CASE WHEN spam_accounts_count = 0 THEN 0 ELSE (spam_valid_accounts_count * 100.0 / spam_accounts_count) END $direction"
                         );
                     }),
 
@@ -186,8 +187,9 @@ class UploadProfile extends Page implements HasTable
                         return round(($clean / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
+                        // Исправленная сортировка: процент чистых аккаунтов считается как clean_valid_accounts_count / clean_accounts_count
                         return $query->orderByRaw(
-                            "CASE WHEN temp_accounts_count = 0 THEN 0 ELSE (clean_accounts_count * 100.0 / temp_accounts_count) END $direction"
+                            "CASE WHEN clean_accounts_count = 0 THEN 0 ELSE (clean_valid_accounts_count * 100.0 / clean_accounts_count) END $direction"
                         );
                     }),
             ])
