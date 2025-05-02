@@ -37,8 +37,9 @@ class UploadProfile extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(
-                TempVendor::query()
+            ->query(function () {
+                // Вынес фильтры из запроса, чтобы они применялись корректно
+                return TempVendor::query()
                     ->where('upload_id', $this->uploadId)
                     ->withCount([
                         'tempAccounts',
@@ -66,8 +67,8 @@ class UploadProfile extends Page implements HasTable
                         'tempAccounts as clean_dead_accounts_count' => function ($q) {
                             $q->where('type', 'dead')->where('spamblock', 'free');
                         },
-                    ])
-            )
+                    ]);
+            })
             ->columns([
                 TextColumn::make('name')
                     ->label('Продавец')
@@ -138,7 +139,6 @@ class UploadProfile extends Page implements HasTable
                         return round(($spam / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        // Исправленная сортировка: процент спам-валидных аккаунтов от всех спам-аккаунтов
                         return $query->orderByRaw(
                             "CASE WHEN spam_accounts_count = 0 THEN 0 ELSE (spam_valid_accounts_count * 100.0 / spam_accounts_count) END $direction"
                         );
@@ -187,7 +187,6 @@ class UploadProfile extends Page implements HasTable
                         return round(($clean / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        // Исправленная сортировка: процент чистых аккаунтов считается как clean_valid_accounts_count / clean_accounts_count
                         return $query->orderByRaw(
                             "CASE WHEN clean_accounts_count = 0 THEN 0 ELSE (clean_valid_accounts_count * 100.0 / clean_accounts_count) END $direction"
                         );
@@ -204,11 +203,10 @@ class UploadProfile extends Page implements HasTable
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['min_accounts'])) {
                             $min = (int) $data['min_accounts'];
-                            return $query->whereExists(function ($sub) use ($min) {
-                                $sub->selectRaw(1)
-                                    ->from('temp_accounts')
-                                    ->whereColumn('temp_accounts.temp_vendor_id', 'temp_vendors.id')
-                                    ->groupBy('temp_accounts.temp_vendor_id')
+                            // Исправлено: фильтр теперь корректно работает с whereHas
+                            return $query->whereHas('tempAccounts', function ($q) use ($min) {
+                                $q->selectRaw('temp_vendor_id, COUNT(*) as cnt')
+                                    ->groupBy('temp_vendor_id')
                                     ->havingRaw('COUNT(*) >= ?', [$min]);
                             });
                         }
@@ -225,16 +223,13 @@ class UploadProfile extends Page implements HasTable
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
-                            return $query->whereRaw("
-                                (SELECT CASE 
-                                    WHEN COUNT(*) > 0 
-                                    THEN (SUM(CASE WHEN spamblock = 'free' THEN 1 ELSE 0 END) / COUNT(*)) * 100 
-                                    ELSE 0 
-                                END
-                                FROM temp_accounts 
-                                WHERE temp_accounts.temp_vendor_id = temp_vendors.id
-                                ) >= ?
-                            ", [$min]);
+                            // Исправлено: фильтр теперь корректно работает с whereHas и подзапросом
+                            return $query->whereHas('tempAccounts', function ($q) use ($min) {
+                                // Здесь фильтрация по выживаемости реализуется через having
+                                $q->selectRaw('temp_vendor_id, SUM(CASE WHEN spamblock = "free" THEN 1 ELSE 0 END) as free_count, COUNT(*) as total_count')
+                                    ->groupBy('temp_vendor_id')
+                                    ->havingRaw('CASE WHEN COUNT(*) > 0 THEN (SUM(CASE WHEN spamblock = "free" THEN 1 ELSE 0 END) / COUNT(*)) * 100 ELSE 0 END >= ?', [$min]);
+                            });
                         }
                         return $query;
                     }),
@@ -246,11 +241,10 @@ class UploadProfile extends Page implements HasTable
                             ->multiple()
                             ->searchable()
                             ->options(
-                                \App\Models\TempVendor::query()
-                                    ->join('temp_accounts', 'temp_accounts.temp_vendor_id', '=', 'temp_vendors.id')
-                                    ->whereNotNull('temp_accounts.geo')
+                                \App\Models\TempAccount::query()
+                                    ->whereNotNull('geo')
                                     ->distinct()
-                                    ->pluck('temp_accounts.geo', 'temp_accounts.geo')
+                                    ->pluck('geo', 'geo')
                                     ->toArray()
                             )
                     ])
