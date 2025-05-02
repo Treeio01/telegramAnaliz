@@ -45,7 +45,7 @@ class UploadAssignGeoPricesPage extends Page
     {
         $this->uploadId = request()->query('uploadId');
         $geoList = session()->get("geo_list_for_upload_{$this->uploadId}", []);
-
+        dd($geoList);
         if (empty($geoList)) {
             abort(403, 'Нет данных для загрузки.');
         }
