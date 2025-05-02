@@ -104,7 +104,7 @@ class UploadImportWizard extends Page
                     $geoWithMissingPrices[$geo] = true;
                 }
                 
-                \Log::info('аыфвафыва');
+                \Log::info($type);
                 $normalizedAccounts[] = [
                     'geo' => $geo,
                     'price' => $price,
