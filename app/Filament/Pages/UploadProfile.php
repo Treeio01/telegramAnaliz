@@ -180,7 +180,7 @@ class UploadProfile extends Page implements HasTable
                         }
                     })
                     ->state(function (TempVendor $record) {
-                        $total = (int) $record->valid_accounts_count ?? 0;
+                        $total = (int) $record->clean_accounts_count ?? 0;
                         if ($total === 0) return 0;
                         $clean = (int) $record->clean_valid_accounts_count ?? 0;
                         return round(($clean / $total) * 100, 2);
