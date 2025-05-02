@@ -116,12 +116,12 @@ class UploadProfile extends Page implements HasTable
                         return $query->orderBy('spam_dead_accounts_count', $direction);
                     }),
 
-                TextColumn::make('spam_percent_valid_accounts')
-                    ->label('СпамV %')
+                TextColumn::make('spam_percent_accounts')
+                    ->label('Спам %')
                     ->color(function (TempVendor $record) {
-                        $total = (int) $record->valid_accounts_count ?? 0;
+                        $total = $record->temp_accounts_count ?? 0;
                         if ($total === 0) return 'gray';
-                        $spam = (int) $record->spam_valid_accounts_count ?? 0;
+                        $spam = $record->spam_accounts_count ?? 0;
                         $percent = round(($spam / $total) * 100, 2);
                         if ($percent > 75) {
                             return 'danger';
@@ -132,14 +132,14 @@ class UploadProfile extends Page implements HasTable
                         }
                     })
                     ->state(function (TempVendor $record) {
-                        $total = (int) $record->valid_accounts_count ?? 0;
+                        $total = $record->spam_accounts_count ?? 0;
                         if ($total === 0) return 0;
-                        $spam = (int) $record->spam_valid_accounts_count ?? 0;
+                        $spam = $record->spam_valid_accounts_count ?? 0;
                         return round(($spam / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw(
-                            "CASE WHEN valid_accounts_count = 0 THEN 0 ELSE (spam_valid_accounts_count * 100.0 / valid_accounts_count) END $direction"
+                            "CASE WHEN temp_accounts_count = 0 THEN 0 ELSE (spam_accounts_count * 100.0 / temp_accounts_count) END $direction"
                         );
                     }),
 
@@ -165,11 +165,11 @@ class UploadProfile extends Page implements HasTable
                     }),
 
                 TextColumn::make('clean_percent_accounts')
-                    ->label('ЧистV %')
+                    ->label('Чист%')
                     ->color(function (TempVendor $record) {
-                        $total = (int) $record->valid_accounts_count ?? 0;
+                        $total = $record->temp_accounts_count ?? 0;
                         if ($total === 0) return 'gray';
-                        $clean = (int) $record->clean_valid_accounts_count ?? 0;
+                        $clean = $record->clean_accounts_count ?? 0;
                         $percent = round(($clean / $total) * 100, 2);
                         if ($percent < 25) {
                             return 'danger';
@@ -180,14 +180,14 @@ class UploadProfile extends Page implements HasTable
                         }
                     })
                     ->state(function (TempVendor $record) {
-                        $total = (int) $record->clean_accounts_count ?? 0;
+                        $total = $record->clean_accounts_count ?? 0;
                         if ($total === 0) return 0;
-                        $clean = (int) $record->clean_valid_accounts_count ?? 0;
+                        $clean = $record->clean_valid_accounts_count ?? 0;
                         return round(($clean / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw(
-                            "CASE WHEN valid_accounts_count = 0 THEN 0 ELSE (clean_valid_accounts_count * 100.0 / valid_accounts_count) END $direction"
+                            "CASE WHEN temp_accounts_count = 0 THEN 0 ELSE (clean_accounts_count * 100.0 / temp_accounts_count) END $direction"
                         );
                     }),
             ])
@@ -345,6 +345,7 @@ class UploadProfile extends Page implements HasTable
 
             // Редиректим на страницу со списком загрузок
             return redirect()->route('filament.admin.resources.uploads.index');
+
         } catch (\Exception $e) {
             Notification::make()
                 ->title('Ошибка при сохранении')
