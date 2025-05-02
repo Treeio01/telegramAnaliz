@@ -70,12 +70,14 @@ class UploadImportWizard extends Page
     private function processFiles($files, &$allNormalizedAccounts, &$allGeoWithMissingPrices, &$originalNames, $type)
     {
         foreach ($files as $zipFile) {
+            \Log::info('zipFile', [$zipFile]);
             $tempPath = $zipFile->getRealPath();
             $extractPath = storage_path('app/tmp/' . (string) Str::uuid());
             mkdir($extractPath, 0755, true);
 
             $zip = new \ZipArchive();
             if ($zip->open($tempPath) !== true) {
+
                 throw new \Exception("Не удалось открыть архив: " . $tempPath);
             }
 
@@ -87,14 +89,14 @@ class UploadImportWizard extends Page
             $normalizedAccounts = [];
 
             foreach ($files as $file) {
+                \Log::info('file', [$file]);
                 $jsonPath = $extractPath . '/' . $file;
                 $json = json_decode(file_get_contents($jsonPath), true);
 
                 // Проверяем наличие api_data и извлекаем данные соответственно
                 $data = isset($json['api_data']) ? $json['api_data'] : $json;
-
+                \Log::info('data', [$data]);
                 $phone = $data['phone'] ?? null;
-                if (!$phone) continue;
 
                 $geo = \App\Services\GeoDetectorService::getGeoFromPhone($phone);
                 $price = $data['price'] ?? null;
@@ -103,7 +105,9 @@ class UploadImportWizard extends Page
                 if (empty($price) && $geo) {
                     $geoWithMissingPrices[$geo] = true;
                 }
-
+                
+                \Log::info('аыфвафыва');
+                \Log::info('normalizedAccount', [$normalizedAccounts]);
                 $normalizedAccounts[] = [
                     'geo' => $geo,
                     'price' => $price,
@@ -115,10 +119,12 @@ class UploadImportWizard extends Page
                     'stats_invites_count' => $data['stats_invites_count'] ?? 0,
                     'type' => $type, // Используем тип из параметра функции, независимо от формата данных
                 ];
+                \Log::info('44444');
+                \Log::info('normalizedAccount', [$normalizedAccounts]);
             }
-
+            \Log::info('normalizedAccounts', [$normalizedAccounts]);
             $allNormalizedAccounts = array_merge($allNormalizedAccounts, $normalizedAccounts);
-            $allGeoWithMissingPrices = array_merge($allGeoWithMissingPrices, array_keys($geoWithMissingPrices));
+            $allGeoWithMissingPrices = array_merge($allGeoWithMissingPrices, array_keys($geoWithMissingPrices)) ;
             $originalNames[] = $zipFile->getClientOriginalName();
 
             Storage::disk('local')->delete($tempPath);
