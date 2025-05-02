@@ -119,13 +119,13 @@ class UploadProfile extends Page implements HasTable
                 TextColumn::make('spam_percent_accounts')
                     ->label('Спам %')
                     ->color(function (TempVendor $record) {
-                        $total = $record->temp_accounts_count ?? 0;
+                        $total = $record->spam_accounts_count ?? 0;
                         if ($total === 0) return 'gray';
-                        $spam = $record->spam_accounts_count ?? 0;
+                        $spam = $record->spam_valid_accounts_count ?? 0;
                         $percent = round(($spam / $total) * 100, 2);
-                        if ($percent > 25) {
+                        if ($percent > 75) {
                             return 'danger';
-                        } elseif ($percent > 75) {
+                        } elseif ($percent > 25) {
                             return 'warning';
                         } else {
                             return 'success';
