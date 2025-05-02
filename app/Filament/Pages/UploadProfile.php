@@ -167,9 +167,9 @@ class UploadProfile extends Page implements HasTable
                 TextColumn::make('clean_percent_accounts')
                     ->label('Чист%')
                     ->color(function (TempVendor $record) {
-                        $total = $record->temp_accounts_count ?? 0;
+                        $total = $record->clean_accounts_count ?? 0;
                         if ($total === 0) return 'gray';
-                        $clean = $record->clean_accounts_count ?? 0;
+                        $clean = $record->clean_valid_accounts_count ?? 0;
                         $percent = round(($clean / $total) * 100, 2);
                         if ($percent < 25) {
                             return 'danger';
