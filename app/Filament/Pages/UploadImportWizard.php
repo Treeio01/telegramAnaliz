@@ -89,13 +89,11 @@ class UploadImportWizard extends Page
             $normalizedAccounts = [];
 
             foreach ($files as $file) {
-                \Log::info('file', [$file]);
                 $jsonPath = $extractPath . '/' . $file;
                 $json = json_decode(file_get_contents($jsonPath), true);
 
                 // Проверяем наличие api_data и извлекаем данные соответственно
                 $data = isset($json['api_data']) ? $json['api_data'] : $json;
-                \Log::info('data', [$data]);
                 $phone = $data['phone'] ?? null;
 
                 $geo = \App\Services\GeoDetectorService::getGeoFromPhone($phone);
@@ -107,7 +105,6 @@ class UploadImportWizard extends Page
                 }
                 
                 \Log::info('аыфвафыва');
-                \Log::info('normalizedAccount', [$normalizedAccounts]);
                 $normalizedAccounts[] = [
                     'geo' => $geo,
                     'price' => $price,
@@ -120,9 +117,7 @@ class UploadImportWizard extends Page
                     'type' => $type, // Используем тип из параметра функции, независимо от формата данных
                 ];
                 \Log::info('44444');
-                \Log::info('normalizedAccount', [$normalizedAccounts]);
             }
-            \Log::info('normalizedAccounts', [$normalizedAccounts]);
             $allNormalizedAccounts = array_merge($allNormalizedAccounts, $normalizedAccounts);
             $allGeoWithMissingPrices = array_merge($allGeoWithMissingPrices, array_keys($geoWithMissingPrices)) ;
             $originalNames[] = $zipFile->getClientOriginalName();
