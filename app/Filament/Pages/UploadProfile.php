@@ -43,7 +43,7 @@ class UploadProfile extends Page implements HasTable
                     ->withCount([
                         'tempAccounts',
                         'tempAccounts as valid_accounts_count' => function ($q) {
-                            $q->where('type', 'alive');
+                            $q->where('type', 'valid');
                         },
                         'tempAccounts as dead_accounts_count' => function ($q) {
                             $q->where('type', 'dead');
@@ -52,7 +52,7 @@ class UploadProfile extends Page implements HasTable
                             $q->where('spamblock', '!=', 'free');
                         },
                         'tempAccounts as spam_valid_accounts_count' => function ($q) {
-                            $q->where('type', 'alive')->where('spamblock', '!=', 'free');
+                            $q->where('type', 'valid')->where('spamblock', '!=', 'free');
                         },
                         'tempAccounts as spam_dead_accounts_count' => function ($q) {
                             $q->where('type', 'dead')->where('spamblock', '!=', 'free');
@@ -61,7 +61,7 @@ class UploadProfile extends Page implements HasTable
                             $q->where('spamblock', 'free');
                         },
                         'tempAccounts as clean_valid_accounts_count' => function ($q) {
-                            $q->where('type', 'alive')->where('spamblock', 'free');
+                            $q->where('type', 'valid')->where('spamblock', 'free');
                         },
                         'tempAccounts as clean_dead_accounts_count' => function ($q) {
                             $q->where('type', 'dead')->where('spamblock', 'free');
