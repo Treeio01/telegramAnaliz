@@ -50,7 +50,7 @@ class UploadProfile extends Page implements HasTable
                     ')
                     ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
                     ->groupBy('temp_vendors.id')
-                    ->where('upload_id', $this->uploadId)
+                    ->where('temp_vendors.upload_id', $this->uploadId)
                     ->withCount([
                         'tempAccounts',
                         'tempAccounts as valid_accounts_count' => function ($q) {
