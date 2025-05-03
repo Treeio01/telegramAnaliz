@@ -38,8 +38,18 @@ class UploadProfile extends Page implements HasTable
     {
         return $table
             ->query(function () {
-                // Вынес фильтры из запроса, чтобы они применялись корректно
                 return TempVendor::query()
+                    ->selectRaw('
+                        temp_vendors.*,
+                        COUNT(temp_accounts.id) as total_accounts,
+                        SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) as free_accounts,
+                        CASE WHEN COUNT(temp_accounts.id) > 0
+                            THEN (SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) / COUNT(temp_accounts.id)) * 100
+                            ELSE 0
+                        END as survival_rate
+                    ')
+                    ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
+                    ->groupBy('temp_vendors.id')
                     ->where('upload_id', $this->uploadId)
                     ->withCount([
                         'tempAccounts',
@@ -224,14 +234,7 @@ class UploadProfile extends Page implements HasTable
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
                             // Рабочий вариант фильтра по выживаемости
-                            return $query->whereHas('tempAccounts', function ($q) use ($min) {
-                                $q->select('temp_vendor_id')
-                                    ->groupBy('temp_vendor_id')
-                                    ->havingRaw(
-                                        'CASE WHEN COUNT(*) > 0 THEN (SUM(CASE WHEN spamblock = ? THEN 1 ELSE 0 END) / COUNT(*)) * 100 ELSE 0 END >= ?',
-                                        ['free', $min]
-                                    );
-                            });
+                            return $query->having('survival_rate', '>=', $min);
                         }
                         return $query;
                     }),
