@@ -52,7 +52,7 @@ class StatsController extends Controller
         return view('stats.profile', [
             'vendor' => $vendor,
             'total' => $total,
-            'alive' => $alive,
+            'valid' => $alive,
             'survival' => $survival,
             'total_invites' => $totalInvites,
             'total_spent' => $totalSpent,
@@ -75,7 +75,7 @@ class StatsController extends Controller
         // Сбор данных
         $query = Account::query()
             ->selectRaw('vendor_id, COUNT(*) as total')
-            ->selectRaw("SUM(CASE WHEN last_connect_at IS NOT NULL THEN 1 ELSE 0 END) as alive")
+            ->selectRaw("SUM(CASE WHEN last_connect_at IS NOT NULL THEN 1 ELSE 0 END) as valid")
             ->selectRaw("ROUND(SUM(CASE WHEN last_connect_at IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*) * 100, 2) as survival_rate")
             ->groupBy('vendor_id');
 
@@ -116,7 +116,7 @@ class StatsController extends Controller
                 'vendor_id' => $vendor?->id ?? 'unknown',
                 'vendor_name' => $vendor?->name ?? 'unknown',
                 'total' => $row->total,
-                'alive' => $row->alive,
+                'alive' => $row->valid,
                 'survival_rate' => (float)$row->survival_rate,
                 'total_invites' => $totalInvites,
                 'total_spent' => $totalSpent,

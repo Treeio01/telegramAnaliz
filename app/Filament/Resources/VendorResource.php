@@ -31,9 +31,24 @@ class VendorResource extends Resource
                 return $query
                     ->withCount([
                         'accounts',
-                        'accounts as alive_accounts_count' => function (Builder $q) {
+                        'accounts as accounts_count',
+                        // Исправлено: valid_accounts_count теперь считает type = 'valid'
+                        'accounts as valid_accounts_count' => function (Builder $q) {
+                            $q->where('type', 'valid');
+                        },
+                        'accounts as dead_accounts_count' => function (Builder $q) {
+                            $q->where('type', 'dead');
+                        },
+                        'accounts as spam_accounts_count' => function (Builder $q) {
+                            $q->where('spamblock', '!=', 'free');
+                        },
+                        'accounts as spam_valid_accounts_count' => function (Builder $q) {
+                            $q->where('type', 'valid')->where('spamblock', '!=', 'free');
+                        },
+                        // Добавляем withCount для clean_accounts_count
+                        'accounts as clean_accounts_count' => function (Builder $q) {
                             $q->where('spamblock', 'free');
-                        }
+                        },
                     ]);
             })
 
@@ -62,12 +77,12 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND type = "alive"
+                                AND type = "valid"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('type', 'alive')->count();
+                        return $record->accounts()->where('type', 'valid')->count();
                     }),
 
                 TextColumn::make('dead_accounts_count')
@@ -84,6 +99,35 @@ class VendorResource extends Resource
                     })
                     ->state(function (Vendor $record) {
                         return $record->accounts()->where('type', 'dead')->count();
+                    }),
+
+                TextColumn::make('survival_rate')
+                    ->label('Выживаемость')
+                    ->color(function (Vendor $record) {
+                        $total = $record->accounts_count ?? 0;
+                        if ($total === 0) return 'gray';
+                        $valid = $record->valid_accounts_count ?? 0;
+                        $percent = round(($valid / $total) * 100, 2);
+                        if ($percent < 25) {
+                            return 'danger';
+                        } elseif ($percent < 75) {
+                            return 'warning';
+                        } else {
+                            return 'success';
+                        }
+                    })
+                    ->state(function (Vendor $record) {
+                        $total = $record->accounts_count ?? 0;
+                        if ($total === 0) return 0;
+                        $valid = $record->valid_accounts_count ?? 0;
+                        return round(($valid / $total) * 100, 2);
+                    })
+                    // Исправлено: сортировка survival_rate по valid_accounts_count / accounts_count
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        // Используем valid_accounts_count и accounts_count, которые уже withCount-нуты
+                        return $query->orderByRaw(
+                            'CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END ' . $direction
+                        );
                     }),
 
                 TextColumn::make('spam_accounts_count')
@@ -112,14 +156,14 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND type = "alive" 
+                                AND type = "valid" 
                                 AND spamblock != "free"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
                         return $record->accounts()
-                            ->where('type', 'alive')
+                            ->where('type', 'valid')
                             ->where('spamblock', '!=', 'free')
                             ->count();
                     }),
@@ -150,33 +194,49 @@ class VendorResource extends Resource
                         return $query->orderByRaw(
                             '
                             CASE 
-                                WHEN (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id) = 0 THEN 0
+                                WHEN (
+                                    SELECT COUNT(*) 
+                                    FROM accounts 
+                                    WHERE accounts.vendor_id = vendors.id 
+                                    AND type = "valid" 
+                                    AND spamblock != "free"
+                                ) = 0 THEN 0
                                 ELSE (
-                                    SELECT (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id))
+                                    SELECT (
+                                        COUNT(*) * 100.0 / 
+                                        (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id AND type = "valid" AND spamblock != "free")
+                                    )
                                     FROM accounts 
                                     WHERE accounts.vendor_id = vendors.id 
                                     AND spamblock != "free"
                                 )
                             END ' . $direction
                         );
-                    })->color(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        if ($total === 0) return 'gray';
+                    })
+                    ->color(function (Vendor $record) {
+                        $validSpam = $record->accounts()
+                            ->where('type', 'valid')
+                            ->where('spamblock', '!=', 'free')
+                            ->count();
+                        if ($validSpam === 0) return 'gray';
                         $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
-                        $percent = round(($spam / $total) * 100, 2);
+                        $percent = round(($spam / $validSpam) * 100, 2);
                         if ($percent > 75) {
                             return 'danger';
                         } elseif ($percent > 25) {
-                            return 'warning'; // оранжевое
+                            return 'warning';
                         } else {
                             return 'success';
                         }
                     })
                     ->state(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        if ($total === 0) return 0;
+                        $validSpam = $record->accounts()
+                            ->where('type', 'valid')
+                            ->where('spamblock', '!=', 'free')
+                            ->count();
+                        if ($validSpam === 0) return 0;
                         $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
-                        return round(($spam / $total) * 100, 2);
+                        return round(($spam / $validSpam) * 100, 2);
                     }),
 
                 TextColumn::make('clean_accounts_count')
@@ -192,7 +252,8 @@ class VendorResource extends Resource
                         );
                     })
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->where('spamblock', 'free')->count();
+                        // Используем withCount, чтобы не делать лишний запрос
+                        return $record->clean_accounts_count ?? $record->accounts()->where('spamblock', 'free')->count();
                     }),
 
                 TextColumn::make('clean_valid_accounts_count')
@@ -203,14 +264,14 @@ class VendorResource extends Resource
                             (
                                 SELECT COUNT(*) FROM accounts 
                                 WHERE accounts.vendor_id = vendors.id 
-                                AND type = "alive" 
+                                AND type = "valid" 
                                 AND spamblock = "free"
                             ) ' . $direction
                         );
                     })
                     ->state(function (Vendor $record) {
                         return $record->accounts()
-                            ->where('type', 'alive')
+                            ->where('type', 'valid')
                             ->where('spamblock', 'free')
                             ->count();
                     }),
@@ -238,37 +299,31 @@ class VendorResource extends Resource
                 TextColumn::make('clean_percent_accounts')
                     ->label('Чист%')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
+                        // Используем withCount clean_accounts_count и clean_valid_accounts_count
                         return $query->orderByRaw(
-                            '
-                            CASE 
-                                WHEN (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id) = 0 THEN 0
-                                ELSE (
-                                    SELECT (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id))
-                                    FROM accounts 
-                                    WHERE accounts.vendor_id = vendors.id 
-                                    AND spamblock = "free"
-                                )
-                            END ' . $direction
+                            'CASE WHEN clean_accounts_count = 0 THEN 0 ELSE (clean_valid_accounts_count * 100.0 / clean_accounts_count) END ' . $direction
                         );
-                    })->color(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        if ($total === 0) return 'gray';
-                        $clean = $record->accounts()->where('spamblock', 'free')->count();
-                        $percent = round(($clean / $total) * 100, 2);
+                    })
+                    ->color(function (Vendor $record) {
+                        $cleanTotal = $record->clean_accounts_count ?? $record->accounts()->where('spamblock', 'free')->count();
+                        if ($cleanTotal === 0) return 'gray';
+                        $cleanValid = $record->clean_valid_accounts_count ?? $record->accounts()->where('type', 'valid')->where('spamblock', 'free')->count();
+                        $percent = round(($cleanValid / $cleanTotal) * 100, 2);
                         if ($percent < 25) {
                             return 'danger';
                         } elseif ($percent < 75) {
-                            return 'warning'; // оранжевое
+                            return 'warning';
                         } else {
                             return 'success';
                         }
                     })
                     ->state(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        if ($total === 0) return 0;
-                        $clean = $record->accounts()->where('spamblock', 'free')->count();
-                        return round(($clean / $total) * 100, 2);
+                        $cleanTotal = $record->clean_accounts_count ?? $record->accounts()->where('spamblock', 'free')->count();
+                        if ($cleanTotal === 0) return 0;
+                        $cleanValid = $record->clean_valid_accounts_count ?? $record->accounts()->where('type', 'valid')->where('spamblock', 'free')->count();
+                        return round(($cleanValid / $cleanTotal) * 100, 2);
                     }),
+
                 Tables\Columns\CheckboxColumn::make('del_user')
                     ->label('del_user')
                     ->sortable()
@@ -306,15 +361,45 @@ class VendorResource extends Resource
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
-
+                            // Исправлено: survival_rate фильтр теперь использует type = 'valid'
                             return $query->whereRaw("
-                                (SELECT CASE 
-                                    WHEN COUNT(*) > 0 
-                                    THEN (SUM(CASE WHEN spamblock = 'free' THEN 1 ELSE 0 END) / COUNT(*)) * 100 
-                                    ELSE 0 
-                                END
-                                FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id
+                                (
+                                    SELECT 
+                                        CASE 
+                                            WHEN COUNT(*) > 0 
+                                            THEN (SUM(CASE WHEN type = 'valid' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+                                            ELSE 0 
+                                        END
+                                    FROM accounts 
+                                    WHERE accounts.vendor_id = vendors.id
+                                ) >= ?
+                            ", [$min]);
+                        }
+                        return $query;
+                    }),
+
+                // Добавляем фильтр по проценту чистых аккаунтов
+                Filter::make('clean_percent_accounts')
+                    ->form([
+                        TextInput::make('clean_percent_accounts')
+                            ->numeric()
+                            ->label('Мин. Чист%')
+                            ->default(0),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['clean_percent_accounts'])) {
+                            $min = (int) $data['clean_percent_accounts'];
+                            // Аналогично survival_rate, только по spamblock = 'free'
+                            return $query->whereRaw("
+                                (
+                                    SELECT 
+                                        CASE 
+                                            WHEN COUNT(*) > 0 
+                                            THEN (SUM(CASE WHEN spamblock = 'free' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+                                            ELSE 0 
+                                        END
+                                    FROM accounts 
+                                    WHERE accounts.vendor_id = vendors.id
                                 ) >= ?
                             ", [$min]);
                         }
