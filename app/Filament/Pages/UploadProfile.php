@@ -259,7 +259,7 @@ class UploadProfile extends Page implements HasTable
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
                             
-                            // Собираем ID с помощью отдельного запроса
+                            // Собираем ID с помощью отдельного запроса, указывая полные имена полей
                             $validIds = DB::table('temp_vendors')
                                 ->select('temp_vendors.id')
                                 ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
@@ -267,7 +267,8 @@ class UploadProfile extends Page implements HasTable
                                 ->havingRaw('CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id)) END >= ?', [$min])
                                 ->pluck('id');
                             
-                            return $query->whereIn('id', $validIds);
+                            // Исправляем амбигуитный WHERE, используя полное имя поля
+                            return $query->whereIn('temp_vendors.id', $validIds);
                         }
                         return $query;
                     }),
