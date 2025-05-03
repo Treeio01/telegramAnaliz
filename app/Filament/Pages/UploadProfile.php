@@ -205,7 +205,7 @@ class UploadProfile extends Page implements HasTable
                             $min = (int) $data['min_accounts'];
                             // Исправлено: фильтр теперь корректно работает с whereHas
                             return $query->whereHas('tempAccounts', function ($q) use ($min) {
-                                $q->selectRaw('temp_vendor_id, COUNT(*) as cnt')
+                                $q->select('temp_vendor_id')
                                     ->groupBy('temp_vendor_id')
                                     ->havingRaw('COUNT(*) >= ?', [$min]);
                             });
@@ -223,10 +223,11 @@ class UploadProfile extends Page implements HasTable
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
-                            // Исправлено: фильтр теперь корректно работает с whereHas и подзапросом
-                            return $query->whereHas('tempAccounts', function ($q) use ($min) {
-                                // Здесь фильтрация по выживаемости реализуется через having
-                                $q->selectRaw('temp_vendor_id, SUM(CASE WHEN spamblock = "free" THEN 1 ELSE 0 END) as free_count, COUNT(*) as total_count')
+                            // Исправлено: фильтр survival_rate для only_full_group_by
+                            // Вместо selectRaw('* ...') используем только агрегаты и group by
+                            return $query->whereIn('id', function ($sub) use ($min) {
+                                $sub->select('temp_vendor_id')
+                                    ->from('temp_accounts')
                                     ->groupBy('temp_vendor_id')
                                     ->havingRaw('CASE WHEN COUNT(*) > 0 THEN (SUM(CASE WHEN spamblock = "free" THEN 1 ELSE 0 END) / COUNT(*)) * 100 ELSE 0 END >= ?', [$min]);
                             });
