@@ -79,7 +79,8 @@ class UploadProfile extends Page implements HasTable
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->url(fn(TempVendor $record): string => route('temp-vendor.profile', ['id' => $record->id])),
 
                 TextColumn::make('total_accounts')
                     ->label('Всего аккаунтов')
