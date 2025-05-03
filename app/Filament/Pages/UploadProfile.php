@@ -262,14 +262,11 @@ class UploadProfile extends Page implements HasTable
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
-                            return $query->whereHas('tempAccounts', function ($q) use ($min) {
-                                $q->select('temp_vendor_id')
-                                    ->groupBy('temp_vendor_id')
-                                    ->havingRaw(
-                                        'CASE WHEN COUNT(*) > 0 THEN (SUM(CASE WHEN spamblock = ? THEN 1 ELSE 0 END) / COUNT(*)) * 100 ELSE 0 END >= ?',
-                                        ['free', $min]
-                                    );
-                            });
+                            // survival_rate считается в selectRaw, фильтруем по нему через having
+                            return $query->havingRaw(
+                                'CASE WHEN COUNT(temp_accounts.id) > 0 THEN (SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) / COUNT(temp_accounts.id)) * 100 ELSE 0 END >= ?',
+                                [$min]
+                            );
                         }
                         return $query;
                     }),
