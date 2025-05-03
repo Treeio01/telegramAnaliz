@@ -258,10 +258,8 @@ class UploadProfile extends Page implements HasTable
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
-                            return $query->havingRaw(
-                                'CASE WHEN total_accounts = 0 THEN 0 ELSE (total_valid * 100.0 / total_accounts) END >= ?',
-                                [$min]
-                            );
+                            // Более прямой SQL запрос
+                            return $query->whereRaw('(CASE WHEN total_accounts = 0 THEN 0 ELSE (total_valid * 100.0 / total_accounts) END) >= ?', [$min]);
                         }
                         return $query;
                     }),
