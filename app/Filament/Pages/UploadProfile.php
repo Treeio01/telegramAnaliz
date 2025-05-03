@@ -255,15 +255,28 @@ class UploadProfile extends Page implements HasTable
                             ->label('Мин. выживаемость (%)')
                             ->default(0),
                     ])
-                    ->query(function (Builder $query, array $data) {
+                    ->modifyQueryUsing(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
                             
-                            // Полностью заменяем запрос с подзапросом
-                            return $query->from(DB::raw("({$query->toSql()}) as t"))
-                                ->mergeBindings($query->getQuery())
-                                ->where(DB::raw('(CASE WHEN total_accounts = 0 THEN 0 ELSE (total_valid * 100.0 / total_accounts) END)'), '>=', $min);
+                            // Сначала получаем все записи
+                            $results = $query->get();
+                            
+                            // Фильтруем их в PHP
+                            $filtered = $results->filter(function ($record) use ($min) {
+                                $total = $record->total_accounts ?? 0;
+                                if ($total === 0) return false;
+                                
+                                $valid = $record->total_valid ?? 0;
+                                $percent = ($valid / $total) * 100;
+                                
+                                return $percent >= $min;
+                            });
+                            
+                            // Возвращаем только отфильтрованные ID
+                            return $query->whereIn('id', $filtered->pluck('id'));
                         }
+                        
                         return $query;
                     }),
 
