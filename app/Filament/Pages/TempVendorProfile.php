@@ -33,9 +33,13 @@ class TempVendorProfile extends Page implements HasTable
     
     public function getGeoList()
     {
+        // Удаляем все значения, которые null или пустые строки, чтобы избежать ошибки с null label
         return TempAccount::where('temp_vendor_id', $this->tempVendor->id)
             ->distinct()
             ->pluck('geo', 'geo')
+            ->filter(function ($label, $value) {
+                return !is_null($label) && $label !== '';
+            })
             ->toArray();
     }
     
