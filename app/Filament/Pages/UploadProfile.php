@@ -41,43 +41,23 @@ class UploadProfile extends Page implements HasTable
                 return TempVendor::query()
                     ->selectRaw('
                         temp_vendors.*,
-                        COUNT(temp_accounts.id) as total_accounts,
-                        SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) as free_accounts,
+                        COUNT(temp_accounts.id) as temp_accounts_count,
+                        SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) as valid_accounts_count,
+                        SUM(CASE WHEN temp_accounts.type = "dead" THEN 1 ELSE 0 END) as dead_accounts_count,
+                        SUM(CASE WHEN temp_accounts.spamblock != "free" THEN 1 ELSE 0 END) as spam_accounts_count,
+                        SUM(CASE WHEN temp_accounts.type = "valid" AND temp_accounts.spamblock != "free" THEN 1 ELSE 0 END) as spam_valid_accounts_count,
+                        SUM(CASE WHEN temp_accounts.type = "dead" AND temp_accounts.spamblock != "free" THEN 1 ELSE 0 END) as spam_dead_accounts_count,
+                        SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) as clean_accounts_count,
+                        SUM(CASE WHEN temp_accounts.type = "valid" AND temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) as clean_valid_accounts_count,
+                        SUM(CASE WHEN temp_accounts.type = "dead" AND temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) as clean_dead_accounts_count,
                         CASE WHEN COUNT(temp_accounts.id) > 0
                             THEN (SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) / COUNT(temp_accounts.id)) * 100
                             ELSE 0
                         END as survival_rate
                     ')
                     ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
-                    ->groupBy('temp_vendors.id')
                     ->where('temp_vendors.upload_id', $this->uploadId)
-                    ->withCount([
-                        'tempAccounts',
-                        'tempAccounts as valid_accounts_count' => function ($q) {
-                            $q->where('type', 'valid');
-                        },
-                        'tempAccounts as dead_accounts_count' => function ($q) {
-                            $q->where('type', 'dead');
-                        },
-                        'tempAccounts as spam_accounts_count' => function ($q) {
-                            $q->where('spamblock', '!=', 'free');
-                        },
-                        'tempAccounts as spam_valid_accounts_count' => function ($q) {
-                            $q->where('type', 'valid')->where('spamblock', '!=', 'free');
-                        },
-                        'tempAccounts as spam_dead_accounts_count' => function ($q) {
-                            $q->where('type', 'dead')->where('spamblock', '!=', 'free');
-                        },
-                        'tempAccounts as clean_accounts_count' => function ($q) {
-                            $q->where('spamblock', 'free');
-                        },
-                        'tempAccounts as clean_valid_accounts_count' => function ($q) {
-                            $q->where('type', 'valid')->where('spamblock', 'free');
-                        },
-                        'tempAccounts as clean_dead_accounts_count' => function ($q) {
-                            $q->where('type', 'dead')->where('spamblock', 'free');
-                        },
-                    ]);
+                    ->groupBy('temp_vendors.id');
             })
             ->columns([
                 TextColumn::make('name')
