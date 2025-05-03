@@ -42,7 +42,7 @@ class UploadProfile extends Page implements HasTable
                     ->selectRaw('
                         temp_vendors.*,
                         COUNT(temp_accounts.id) as total_accounts,
-                        SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) as valid_accounts_count
+                        SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) as total_valid
                     ')
                     ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
                     ->groupBy('temp_vendors.id')
@@ -88,11 +88,11 @@ class UploadProfile extends Page implements HasTable
                         return $query->orderBy('total_accounts', $direction);
                     }),
 
-                TextColumn::make('valid_accounts_count')
+                TextColumn::make('total_valid')
                     ->label('Валид')
-                    ->state(fn(TempVendor $record) => $record->valid_accounts_count)
+                    ->state(fn(TempVendor $record) => $record->total_valid)
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderBy('valid_accounts_count', $direction);
+                        return $query->orderBy('total_valid', $direction);
                     }),
 
                 TextColumn::make('dead_accounts_count')
@@ -107,7 +107,7 @@ class UploadProfile extends Page implements HasTable
                     ->color(function (TempVendor $record) {
                         $total = $record->total_accounts ?? 0;
                         if ($total === 0) return 'gray';
-                        $valid = $record->valid_accounts_count ?? 0;
+                        $valid = $record->total_valid ?? 0;
                         $percent = round(($valid / $total) * 100, 2);
                         if ($percent < 25) {
                             return 'danger';
@@ -118,7 +118,7 @@ class UploadProfile extends Page implements HasTable
                         }
                     })
                     ->state(function (TempVendor $record) {
-                        $valid = $record->valid_accounts_count ?? 0;
+                        $valid = $record->total_valid ?? 0;
                         $total = $record->total_accounts ?? 0;
                         if ($total === 0) {
                             return 0;
@@ -127,7 +127,7 @@ class UploadProfile extends Page implements HasTable
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderByRaw(
-                            "CASE WHEN total_accounts = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / total_accounts) END $direction"
+                            "CASE WHEN total_accounts = 0 THEN 0 ELSE (total_valid * 100.0 / total_accounts) END $direction"
                         );
                     }),
 
@@ -259,7 +259,7 @@ class UploadProfile extends Page implements HasTable
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
                             return $query->havingRaw(
-                                'CASE WHEN total_accounts = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / total_accounts) END >= ?',
+                                'CASE WHEN total_accounts = 0 THEN 0 ELSE (total_valid * 100.0 / total_accounts) END >= ?',
                                 [$min]
                             );
                         }
