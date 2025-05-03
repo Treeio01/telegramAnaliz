@@ -15,6 +15,7 @@ class TempVendor extends Model
     protected $fillable = [
         'name',
         'upload_id',
+        'del_user',
     ];
 
 

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Vendor;
 use App\Models\Account;
 use App\Models\TempAccount;
+use App\Models\GeoPreset;
 
 class UploadProfile extends Page implements HasTable
 {
@@ -43,7 +44,7 @@ class UploadProfile extends Page implements HasTable
         return $table
             ->query(function () use ($hasGeoFilter, $geoFilters) {
                 $query = TempVendor::query();
-                
+
                 // Базовый запрос с учетом GEO фильтра
                 if ($hasGeoFilter) {
                     $query->selectRaw('
@@ -274,6 +275,9 @@ class UploadProfile extends Page implements HasTable
                             "CASE WHEN clean_accounts_count = 0 THEN 0 ELSE (clean_valid_accounts_count * 100.0 / clean_accounts_count) END $direction"
                         );
                     }),
+                Tables\Columns\CheckboxColumn::make('del_user')
+                    ->label('del_user')
+                    ->sortable()
             ])
             ->filters([
                 Tables\Filters\Filter::make('min_accounts')
@@ -306,7 +310,7 @@ class UploadProfile extends Page implements HasTable
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
-                            
+
                             // Собираем ID с помощью отдельного запроса, указывая полные имена полей
                             $validIds = DB::table('temp_vendors')
                                 ->select('temp_vendors.id')
@@ -314,7 +318,7 @@ class UploadProfile extends Page implements HasTable
                                 ->groupBy('temp_vendors.id')
                                 ->havingRaw('CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id)) END >= ?', [$min])
                                 ->pluck('id');
-                            
+
                             // Исправляем амбигуитный WHERE, используя полное имя поля
                             return $query->whereIn('temp_vendors.id', $validIds);
                         }
@@ -323,6 +327,15 @@ class UploadProfile extends Page implements HasTable
 
                 Tables\Filters\Filter::make('geo')
                     ->form([
+                        \Filament\Forms\Components\Select::make('preset')
+                            ->label('Гео пресет')
+                            ->options(\App\Models\GeoPreset::pluck('name', 'id'))
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                if ($state) {
+                                    $preset = \App\Models\GeoPreset::find($state);
+                                    $set('geo', $preset ? $preset->geos : []);
+                                }
+                            }),
                         \Filament\Forms\Components\Select::make('geo')
                             ->label('Гео')
                             ->multiple()
@@ -344,7 +357,7 @@ class UploadProfile extends Page implements HasTable
                             $query->whereHas('tempAccounts', function ($q) use ($geo) {
                                 $q->whereIn('geo', $geo);
                             });
-                            
+
                             // Обновляем сессионную переменную с этими фильтрами,
                             // чтобы основной запрос знал о них
                             $this->tableFilters['geo']['geo'] = $geo;
@@ -435,7 +448,6 @@ class UploadProfile extends Page implements HasTable
 
             // Редиректим на страницу со списком загрузок
             return redirect()->route('filament.admin.resources.uploads.index');
-
         } catch (\Exception $e) {
             Notification::make()
                 ->title('Ошибка при сохранении')
