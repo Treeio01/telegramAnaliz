@@ -41,12 +41,8 @@ class UploadProfile extends Page implements HasTable
                 return TempVendor::query()
                     ->selectRaw('
                         temp_vendors.*,
-                        COUNT(temp_accounts.id) as total_accounts,
-                        SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) as free_accounts,
-                        CASE WHEN COUNT(temp_accounts.id) > 0
-                            THEN (SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) / COUNT(temp_accounts.id)) * 100
-                            ELSE 0
-                        END as survival_rate
+                        COUNT(temp_accounts.id) as temp_accounts_count,
+                        SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) as valid_accounts_count
                     ')
                     ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
                     ->groupBy('temp_vendors.id')
@@ -262,9 +258,8 @@ class UploadProfile extends Page implements HasTable
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
-                            // Фильтруем по количеству валидных среди всех (через withCount)
                             return $query->havingRaw(
-                                'CASE WHEN valid_accounts_count IS NULL OR temp_accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / temp_accounts_count) END >= ?',
+                                'CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id)) END >= ?',
                                 [$min]
                             );
                         }
