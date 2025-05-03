@@ -41,10 +41,10 @@ class UploadProfile extends Page implements HasTable
                 return TempVendor::query()
                     ->selectRaw('
                         temp_vendors.*,
-                        COUNT(temp_accounts.id) as temp_accounts_count,
-                        SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) as valid_accounts_count,
+                        COUNT(temp_accounts.id) as total_accounts,
+                        SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) as free_accounts,
                         CASE WHEN COUNT(temp_accounts.id) > 0
-                            THEN (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) / COUNT(temp_accounts.id)) * 100
+                            THEN (SUM(CASE WHEN temp_accounts.spamblock = "free" THEN 1 ELSE 0 END) / COUNT(temp_accounts.id)) * 100
                             ELSE 0
                         END as survival_rate
                     ')
@@ -263,7 +263,7 @@ class UploadProfile extends Page implements HasTable
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
                             return $query->havingRaw(
-                                'CASE WHEN COUNT(temp_accounts.id) > 0 THEN (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) / COUNT(temp_accounts.id)) * 100 ELSE 0 END >= ?',
+                                'CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id)) END >= ?',
                                 [$min]
                             );
                         }
