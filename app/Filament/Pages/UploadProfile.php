@@ -113,9 +113,9 @@ class UploadProfile extends Page implements HasTable
                         if ($total === 0) return 'gray';
                         $valid = $record->valid_accounts_count ?? 0;
                         $percent = round(($valid / $total) * 100, 2);
-                        if ($percent > 25) {
+                        if ($percent > 75) {
                             return 'danger';
-                        } elseif ($percent > 75) {
+                        } elseif ($percent > 25) {
                             return 'warning';
                         } else {
                             return 'success';
@@ -163,9 +163,9 @@ class UploadProfile extends Page implements HasTable
                         if ($total === 0) return 'gray';
                         $spam = $record->spam_valid_accounts_count ?? 0;
                         $percent = round(($spam / $total) * 100, 2);
-                        if ($percent > 25) {
+                        if ($percent > 75) {
                             return 'danger';
-                        } elseif ($percent > 75) {
+                        } elseif ($percent > 25) {
                             return 'warning';
                         } else {
                             return 'success';
