@@ -36,44 +36,91 @@ class UploadProfile extends Page implements HasTable
 
     public function table(Table $table): Table
     {
+        // Получаем активные фильтры GEO, если они установлены
+        $geoFilters = $this->tableFilters['geo']['geo'] ?? [];
+        $hasGeoFilter = !empty($geoFilters);
+
         return $table
-            ->query(function () {
-                return TempVendor::query()
-                    ->selectRaw('
+            ->query(function () use ($hasGeoFilter, $geoFilters) {
+                $query = TempVendor::query();
+                
+                // Базовый запрос с учетом GEO фильтра
+                if ($hasGeoFilter) {
+                    $query->selectRaw('
+                        temp_vendors.*,
+                        COUNT(DISTINCT CASE WHEN ' . ($hasGeoFilter ? 'temp_accounts.geo IN ("' . implode('","', $geoFilters) . '")' : 'TRUE') . ' THEN temp_accounts.id ELSE NULL END) as total_accounts,
+                        SUM(CASE WHEN temp_accounts.type = "valid" AND ' . ($hasGeoFilter ? 'temp_accounts.geo IN ("' . implode('","', $geoFilters) . '")' : 'TRUE') . ' THEN 1 ELSE 0 END) as total_valid
+                    ');
+                } else {
+                    $query->selectRaw('
                         temp_vendors.*,
                         COUNT(temp_accounts.id) as total_accounts,
                         SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) as total_valid
-                    ')
-                    ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
+                    ');
+                }
+
+                $query->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
                     ->groupBy('temp_vendors.id')
-                    ->where('temp_vendors.upload_id', $this->uploadId)
-                    ->withCount([
-                        'tempAccounts',
-                        'tempAccounts as valid_accounts_count' => function ($q) {
-                            $q->where('type', 'valid');
-                        },
-                        'tempAccounts as dead_accounts_count' => function ($q) {
-                            $q->where('type', 'dead');
-                        },
-                        'tempAccounts as spam_accounts_count' => function ($q) {
-                            $q->where('spamblock', '!=', 'free');
-                        },
-                        'tempAccounts as spam_valid_accounts_count' => function ($q) {
-                            $q->where('type', 'valid')->where('spamblock', '!=', 'free');
-                        },
-                        'tempAccounts as spam_dead_accounts_count' => function ($q) {
-                            $q->where('type', 'dead')->where('spamblock', '!=', 'free');
-                        },
-                        'tempAccounts as clean_accounts_count' => function ($q) {
-                            $q->where('spamblock', 'free');
-                        },
-                        'tempAccounts as clean_valid_accounts_count' => function ($q) {
-                            $q->where('type', 'valid')->where('spamblock', 'free');
-                        },
-                        'tempAccounts as clean_dead_accounts_count' => function ($q) {
-                            $q->where('type', 'dead')->where('spamblock', 'free');
-                        },
-                    ]);
+                    ->where('temp_vendors.upload_id', $this->uploadId);
+
+                // Применяем withCount с учетом GEO фильтра
+                $query->withCount([
+                    'tempAccounts as temp_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as valid_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('type', 'valid');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as dead_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('type', 'dead');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as spam_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('spamblock', '!=', 'free');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as spam_valid_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('type', 'valid')->where('spamblock', '!=', 'free');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as spam_dead_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('type', 'dead')->where('spamblock', '!=', 'free');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as clean_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('spamblock', 'free');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as clean_valid_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('type', 'valid')->where('spamblock', 'free');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                    'tempAccounts as clean_dead_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
+                        $q->where('type', 'dead')->where('spamblock', 'free');
+                        if ($hasGeoFilter) {
+                            $q->whereIn('geo', $geoFilters);
+                        }
+                    },
+                ]);
+
+                return $query;
             })
             ->columns([
                 TextColumn::make('name')
@@ -289,11 +336,18 @@ class UploadProfile extends Page implements HasTable
                             )
                     ])
                     ->query(function (Builder $query, array $data) {
+                        // Сохраняем фильтры в сессии для доступа в основном запросе
+                        session(['current_geo_filters' => $data['geo'] ?? []]);
+
                         if (!empty($data['geo'])) {
                             $geo = $data['geo'];
                             $query->whereHas('tempAccounts', function ($q) use ($geo) {
                                 $q->whereIn('geo', $geo);
                             });
+                            
+                            // Обновляем сессионную переменную с этими фильтрами,
+                            // чтобы основной запрос знал о них
+                            $this->tableFilters['geo']['geo'] = $geo;
                         }
                         return $query;
                     }),
@@ -389,5 +443,11 @@ class UploadProfile extends Page implements HasTable
                 ->danger()
                 ->send();
         }
+    }
+
+    protected function getActiveGeoFilters(): array
+    {
+        // Доступ к текущим фильтрам
+        return $this->tableFilters['geo']['geo'] ?? [];
     }
 }
