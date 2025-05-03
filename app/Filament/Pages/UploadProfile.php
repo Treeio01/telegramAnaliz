@@ -255,29 +255,20 @@ class UploadProfile extends Page implements HasTable
                             ->label('Мин. выживаемость (%)')
                             ->default(0),
                     ])
-                    ->modifyQueryUsing(function (Builder $query, array $data) {
+                    ->query(function (Builder $query, array $data) {
                         if (!empty($data['survival_rate'])) {
                             $min = (int) $data['survival_rate'];
                             
-                            // Сначала получаем все записи
-                            $results = $query->get();
+                            // Собираем ID с помощью отдельного запроса
+                            $validIds = DB::table('temp_vendors')
+                                ->select('temp_vendors.id')
+                                ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
+                                ->groupBy('temp_vendors.id')
+                                ->havingRaw('CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id)) END >= ?', [$min])
+                                ->pluck('id');
                             
-                            // Фильтруем их в PHP
-                            $filtered = $results->filter(function ($record) use ($min) {
-                                $total = $record->total_accounts ?? 0;
-                                dd($record->total_accounts);
-                                if ($total === 0) return false;
-                                
-                                $valid = $record->total_valid ?? 0;
-                                $percent = ($valid / $total) * 100;
-                                
-                                return $percent >= $min;
-                            });
-                            
-                            // Возвращаем только отфильтрованные ID
-                            return $query->whereIn('id', $filtered->pluck('id'));
+                            return $query->whereIn('id', $validIds);
                         }
-                        
                         return $query;
                     }),
 
