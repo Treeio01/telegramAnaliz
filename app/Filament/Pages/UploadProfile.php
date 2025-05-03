@@ -128,8 +128,17 @@ class UploadProfile extends Page implements HasTable
                     ->label('Продавец')
                     ->searchable()
                     ->sortable()
-                    ->url(fn(TempVendor $record): string => route('temp-vendor.profile', ['id' => $record->id])),
+                    ->url(function (TempVendor $record) {
+                        // Ищем продавца в основной базе по имени
+                        $vendor = \App\Models\Vendor::where('name', $record->name)->first();
 
+                        if ($vendor) {
+                            // Если найден, перенаправляем на профиль настоящего продавца
+                            return route('vendor.profile', $vendor->id);
+                        } else {
+                           
+                        }
+                    }),
                 TextColumn::make('total_accounts')
                     ->label('Всего аккаунтов')
                     ->state(fn(TempVendor $record) => $record->total_accounts)

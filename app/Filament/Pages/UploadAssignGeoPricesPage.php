@@ -86,6 +86,13 @@ class UploadAssignGeoPricesPage extends Page
             return;
         }
 
+        foreach ($this->geoPrices as $geo => $price) {
+            GeoPrice::updateOrCreate(
+                ['geo' => $geo],
+                ['price' => $price]
+            );
+        }
+
         $uploadData = session()->get("upload_data_{$this->uploadId}", []);
         
         // Группируем данные по ролям (вендорам)
@@ -115,6 +122,7 @@ class UploadAssignGeoPricesPage extends Page
                         'updated_at' => now(),
                     ];
                 }
+                
 
                 // Массовая вставка аккаунтов
                 TempAccount::insert($accountsData);
