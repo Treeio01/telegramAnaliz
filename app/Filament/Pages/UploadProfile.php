@@ -109,10 +109,10 @@ class UploadProfile extends Page implements HasTable
                 TextColumn::make('survival_rate')
                     ->label('Выживаемость')
                     ->color(function (TempVendor $record) {
-                        $total = $record->spam_accounts_count ?? 0;
+                        $total = $record->temp_accounts_count ?? 0;
                         if ($total === 0) return 'gray';
-                        $spam = $record->spam_valid_accounts_count ?? 0;
-                        $percent = round(($spam / $total) * 100, 2);
+                        $valid = $record->valid_accounts_count ?? 0;
+                        $percent = round(($valid / $total) * 100, 2);
                         if ($percent > 25) {
                             return 'danger';
                         } elseif ($percent > 75) {
