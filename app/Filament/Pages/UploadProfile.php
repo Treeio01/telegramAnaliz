@@ -106,6 +106,22 @@ class UploadProfile extends Page implements HasTable
                         return $query->orderBy('dead_accounts_count', $direction);
                     }),
 
+                TextColumn::make('survival_rate')
+                    ->label('Выживаемость')
+                    ->state(function (TempVendor $record) {
+                        $valid = $record->valid_accounts_count ?? 0;
+                        $total = $record->temp_accounts_count ?? 0;
+                        if ($total === 0) {
+                            return 0;
+                        }
+                        return round(($valid / $total) * 100, 2);
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw(
+                            "CASE WHEN temp_accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / temp_accounts_count) END $direction"
+                        );
+                    }),
+
                 TextColumn::make('spam_accounts_count')
                     ->label('Спам')
                     ->state(fn(TempVendor $record) => $record->spam_accounts_count)
