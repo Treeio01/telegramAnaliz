@@ -265,6 +265,7 @@ class UploadProfile extends Page implements HasTable
                             // Фильтруем их в PHP
                             $filtered = $results->filter(function ($record) use ($min) {
                                 $total = $record->total_accounts ?? 0;
+                                dd($record->total_accounts);
                                 if ($total === 0) return false;
                                 
                                 $valid = $record->total_valid ?? 0;
