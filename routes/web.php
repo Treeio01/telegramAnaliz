@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\UploadController;
-use App\Http\Controllers\StatsController;
 use App\Filament\Pages\VendorProfile;
 
 Route::get('/', function () {
