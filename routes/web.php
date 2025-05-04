@@ -18,6 +18,7 @@ Route::get('/stats/invites', [StatsController::class, 'inviteStats'])->name('sta
 Route::get('/admin/vendor/{vendorId}/profile', VendorProfile::class)->name('vendor.profile');
 
 Route::get('/upload/{id}/profile', \App\Filament\Pages\UploadProfile::class)->name('filament.pages.upload-profile');
+Route::get('/upload/{id}/page-invite', \App\Filament\Pages\UploadPageInvite::class)->name('filament.pages.upload-page-invite');
 Route::get('/temp-vendor/{id}/profile', App\Filament\Pages\TempVendorProfile::class)
     ->name('temp-vendor.profile')
     ->middleware(['auth']);

@@ -67,63 +67,68 @@ class UploadProfile extends Page implements HasTable
                 // Применяем withCount с учетом GEO фильтра
                 $query->withCount([
                     'tempAccounts as temp_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as valid_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('type', 'valid');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('type', 'valid');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as dead_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('type', 'dead');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('type', 'dead');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as spam_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('spamblock', '!=', 'free');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('spamblock', '!=', 'free');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as spam_valid_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('type', 'valid')->where('spamblock', '!=', 'free');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('type', 'valid')->where('spamblock', '!=', 'free');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as spam_dead_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('type', 'dead')->where('spamblock', '!=', 'free');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('type', 'dead')->where('spamblock', '!=', 'free');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as clean_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('spamblock', 'free');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('spamblock', 'free');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as clean_valid_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('type', 'valid')->where('spamblock', 'free');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('type', 'valid')->where('spamblock', 'free');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                     'tempAccounts as clean_dead_accounts_count' => function ($q) use ($hasGeoFilter, $geoFilters) {
-                        $q->where('type', 'dead')->where('spamblock', 'free');
-                        if ($hasGeoFilter) {
-                            $q->whereIn('geo', $geoFilters);
-                        }
-                    },
+                    $q->where('type', 'dead')->where('spamblock', 'free');
+                    if ($hasGeoFilter) {
+                        $q->whereIn('geo', $geoFilters);
+                    }
+                },
                 ]);
 
                 return $query;
             })
             ->columns([
+                TextColumn::make('copy_name')
+                    ->label('')
+                    ->state('Копировать')
+                    ->copyable()
+                    ->copyableState(fn(TempVendor $record) => $record->name),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
@@ -135,10 +140,14 @@ class UploadProfile extends Page implements HasTable
                         if ($vendor) {
                             // Если найден, перенаправляем на профиль настоящего продавца
                             return route('vendor.profile', $vendor->id);
-                        } else {
-                           
                         }
-                    }),
+
+                        // Если не найден, не создаем URL
+                        return null;
+                    })
+                    ->copyable()
+                    ->copyMessageDuration(1500)
+                    ->copyMessage('Скопировано!'),
                 TextColumn::make('total_accounts')
                     ->label('Всего аккаунтов')
                     ->state(fn(TempVendor $record) => $record->total_accounts)
@@ -164,16 +173,11 @@ class UploadProfile extends Page implements HasTable
                     ->label('Выживаемость')
                     ->color(function (TempVendor $record) {
                         $total = $record->total_accounts ?? 0;
-                        if ($total === 0) return 'gray';
+                        if ($total === 0)
+                            return 'gray';
                         $valid = $record->total_valid ?? 0;
                         $percent = round(($valid / $total) * 100, 2);
-                        if ($percent < 25) {
-                            return 'danger';
-                        } elseif ($percent < 75) {
-                            return 'warning';
-                        } else {
-                            return 'success';
-                        }
+                        return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
                     })
                     ->state(function (TempVendor $record) {
                         $valid = $record->total_valid ?? 0;
@@ -214,20 +218,16 @@ class UploadProfile extends Page implements HasTable
                     ->label('Спам %')
                     ->color(function (TempVendor $record) {
                         $total = $record->spam_accounts_count ?? 0;
-                        if ($total === 0) return 'gray';
+                        if ($total === 0)
+                            return 'gray';
                         $spam = $record->spam_valid_accounts_count ?? 0;
                         $percent = round(($spam / $total) * 100, 2);
-                        if ($percent > 75) {
-                            return 'danger';
-                        } elseif ($percent > 25) {
-                            return 'warning';
-                        } else {
-                            return 'success';
-                        }
+                        return \App\Models\Settings::getColorForValue('spam_percent_accounts', $percent) ?? 'gray';
                     })
                     ->state(function (TempVendor $record) {
                         $total = $record->spam_accounts_count ?? 0;
-                        if ($total === 0) return 0;
+                        if ($total === 0)
+                            return 0;
                         $spam = $record->spam_valid_accounts_count ?? 0;
                         return round(($spam / $total) * 100, 2);
                     })
@@ -262,20 +262,16 @@ class UploadProfile extends Page implements HasTable
                     ->label('Чист%')
                     ->color(function (TempVendor $record) {
                         $total = $record->clean_accounts_count ?? 0;
-                        if ($total === 0) return 'gray';
+                        if ($total === 0)
+                            return 'gray';
                         $clean = $record->clean_valid_accounts_count ?? 0;
                         $percent = round(($clean / $total) * 100, 2);
-                        if ($percent < 25) {
-                            return 'danger';
-                        } elseif ($percent < 75) {
-                            return 'warning';
-                        } else {
-                            return 'success';
-                        }
+                        return \App\Models\Settings::getColorForValue('clean_percent_accounts', $percent) ?? 'gray';
                     })
                     ->state(function (TempVendor $record) {
                         $total = $record->clean_accounts_count ?? 0;
-                        if ($total === 0) return 0;
+                        if ($total === 0)
+                            return 0;
                         $clean = $record->clean_valid_accounts_count ?? 0;
                         return round(($clean / $total) * 100, 2);
                     })
@@ -311,26 +307,41 @@ class UploadProfile extends Page implements HasTable
 
                 Tables\Filters\Filter::make('survival_rate')
                     ->form([
-                        \Filament\Forms\Components\TextInput::make('survival_rate')
+                        \Filament\Forms\Components\TextInput::make('survival_rate_min')
                             ->numeric()
                             ->label('Мин. выживаемость (%)')
-                            ->default(0),
+                            ->default(null),
+                        \Filament\Forms\Components\TextInput::make('survival_rate_max')
+                            ->numeric()
+                            ->label('Макс. выживаемость (%)')
+                            ->default(null),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if (!empty($data['survival_rate'])) {
-                            $min = (int) $data['survival_rate'];
-
-                            // Собираем ID с помощью отдельного запроса, указывая полные имена полей
-                            $validIds = DB::table('temp_vendors')
+                        $min = isset($data['survival_rate_min']) && $data['survival_rate_min'] !== null && $data['survival_rate_min'] !== '' ? (float)$data['survival_rate_min'] : null;
+                        $max = isset($data['survival_rate_max']) && $data['survival_rate_max'] !== null && $data['survival_rate_max'] !== '' ? (float)$data['survival_rate_max'] : null;
+                        
+                        if ($min !== null || $max !== null) {
+                            // Формируем условие для havingRaw
+                            $havingCondition = 'CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id)) END';
+                            
+                            $validIdsQuery = DB::table('temp_vendors')
                                 ->select('temp_vendors.id')
                                 ->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
-                                ->groupBy('temp_vendors.id')
-                                ->havingRaw('CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE (SUM(CASE WHEN temp_accounts.type = "valid" THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id)) END >= ?', [$min])
-                                ->pluck('id');
-
-                            // Исправляем амбигуитный WHERE, используя полное имя поля
+                                ->groupBy('temp_vendors.id');
+                            
+                            if ($min !== null) {
+                                $validIdsQuery->havingRaw("$havingCondition >= ?", [$min]);
+                            }
+                            
+                            if ($max !== null) {
+                                $validIdsQuery->havingRaw("$havingCondition <= ?", [$max]);
+                            }
+                            
+                            $validIds = $validIdsQuery->pluck('id');
+                            
                             return $query->whereIn('temp_vendors.id', $validIds);
                         }
+                        
                         return $query;
                     }),
 

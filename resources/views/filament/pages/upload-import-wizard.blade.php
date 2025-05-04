@@ -15,6 +15,13 @@
                 <input type="file" multiple wire:model="deadZipFiles" class="file-input file-input-bordered w-full bg-gray-800 rounded-md text-black dark:text-white" />
             </div>
 
+            <div>
+                <label class="block font-semibold text-black dark:text-white mb-2">
+                    <input type="checkbox" wire:model="isInvite" class="checkbox checkbox-primary" />
+                   Инвайт
+                </label>
+            </div>
+
             <div wire:loading wire:target="validZipFiles,deadZipFiles" class="text-blue-500">
                 Загрузка файлов...
             </div>

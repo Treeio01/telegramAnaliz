@@ -35,6 +35,7 @@ class UploadAssignGeoPricesPage extends Page
     public $geoPrices = [];
     public $geoList = [];
     public $uploadId;
+    public $isInvite;
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -45,7 +46,7 @@ class UploadAssignGeoPricesPage extends Page
     {
         $this->uploadId = request()->query('uploadId');
         $geoList = session()->get("geo_list_for_upload_{$this->uploadId}", []);
-        
+        $this->isInvite = session()->get("is_invite_{$this->uploadId}", false);
         
 
         $this->geoList = $geoList;
@@ -135,7 +136,12 @@ class UploadAssignGeoPricesPage extends Page
             "upload_type_{$this->uploadId}",
         ]);
 
-        return redirect()->route('filament.pages.upload-profile', ['id' => $this->uploadId])
-            ->with('success', 'Аккаунты успешно загружены!');
+        if ($this->isInvite) {
+            return redirect()->route('filament.pages.upload-page-invite', ['id' => $this->uploadId])
+                ->with('success', 'Аккаунты успешно загружены!');
+        } else {
+            return redirect()->route('filament.pages.upload-profile', ['id' => $this->uploadId])
+                ->with('success', 'Аккаунты успешно загружены!');
+        }
     }
 }

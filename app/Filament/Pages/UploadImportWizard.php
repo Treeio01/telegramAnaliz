@@ -17,7 +17,7 @@ class UploadImportWizard extends Page
 
     public $validZipFiles = [];
     public $deadZipFiles = [];
-
+    public $isInvite = false;
     public function updated($propertyName)
     {
         // Для поддержки Livewire: убедимся, что это массивы
@@ -27,29 +27,37 @@ class UploadImportWizard extends Page
         if ($propertyName === 'deadZipFiles' && !is_array($this->deadZipFiles)) {
             $this->deadZipFiles = [$this->deadZipFiles];
         }
+
     }
 
     public function submit()
     {
-        \Log::info('validZipFiles', [$this->validZipFiles]);
-        \Log::info('deadZipFiles', [$this->deadZipFiles]);
+
         $this->validate([
             'validZipFiles.*' => 'nullable|file|mimes:zip',
             'deadZipFiles.*' => 'nullable|file|mimes:zip',
+            'isInvite' => 'required|boolean',
         ]);
 
         $allNormalizedAccounts = [];
         $allGeoWithMissingPrices = [];
         $originalNames = [];
 
-        // Обработка живых аккаунтов
-        if (!empty($this->validZipFiles)) {
-            $this->processFiles($this->validZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'valid');
-        }
+        if ($this->isInvite) {
+            // Обработка живых аккаунтов
+            if (!empty($this->validZipFiles)) {
+                $this->processFiles($this->validZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'valid');
+            }
+        } else {
+            // Обработка живых аккаунтов
+            if (!empty($this->validZipFiles)) {
+                $this->processFiles($this->validZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'valid');
+            }
 
-        // Обработка мертвых аккаунтов
-        if (!empty($this->deadZipFiles)) {
-            $this->processFiles($this->deadZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'dead');
+            // Обработка мертвых аккаунтов
+            if (!empty($this->deadZipFiles)) {
+                $this->processFiles($this->deadZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'dead');
+            }
         }
 
         // Убираем дубликаты гео
@@ -63,6 +71,7 @@ class UploadImportWizard extends Page
         session()->put("upload_data_{$upload->id}", $allNormalizedAccounts);
         session()->put("geo_list_for_upload_{$upload->id}", $allGeoWithMissingPrices);
         session()->put("upload_type_{$upload->id}", 'mixed');
+        session()->put("is_invite_{$upload->id}", $this->isInvite);
 
         return redirect('/admin/upload-assign-geo-prices?uploadId=' . $upload->id);
     }
@@ -70,7 +79,7 @@ class UploadImportWizard extends Page
     private function processFiles($files, &$allNormalizedAccounts, &$allGeoWithMissingPrices, &$originalNames, $type)
     {
         foreach ($files as $zipFile) {
-            \Log::info('zipFile', [$zipFile]);
+
             $tempPath = $zipFile->getRealPath();
             $extractPath = storage_path('app/tmp/' . (string) Str::uuid());
             mkdir($extractPath, 0755, true);
@@ -103,8 +112,8 @@ class UploadImportWizard extends Page
                 if (empty($price) && $geo) {
                     $geoWithMissingPrices[$geo] = true;
                 }
-                
-                \Log::info($type);
+
+
                 $normalizedAccounts[] = [
                     'geo' => $geo,
                     'price' => $price,
@@ -116,10 +125,9 @@ class UploadImportWizard extends Page
                     'stats_invites_count' => $data['stats_invites_count'] ?? 0,
                     'type' => $type, // Используем тип из параметра функции, независимо от формата данных
                 ];
-                \Log::info('44444');
             }
             $allNormalizedAccounts = array_merge($allNormalizedAccounts, $normalizedAccounts);
-            $allGeoWithMissingPrices = array_merge($allGeoWithMissingPrices, array_keys($geoWithMissingPrices)) ;
+            $allGeoWithMissingPrices = array_merge($allGeoWithMissingPrices, array_keys($geoWithMissingPrices));
             $originalNames[] = $zipFile->getClientOriginalName();
 
             Storage::disk('local')->delete($tempPath);

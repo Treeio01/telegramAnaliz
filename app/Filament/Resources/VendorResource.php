@@ -52,11 +52,13 @@ class VendorResource extends Resource
                     ]);
             })
 
-
             ->columns([
-                TextColumn::make('id')
-                    ->label('ID')
-                    ->sortable(),
+                TextColumn::make('copy_name')
+                ->label('')
+                ->state('Копировать')
+                ->copyable()
+                ->copyableState(fn(Vendor $record) => $record->name),
+               
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
@@ -108,13 +110,7 @@ class VendorResource extends Resource
                         if ($total === 0) return 'gray';
                         $valid = $record->valid_accounts_count ?? 0;
                         $percent = round(($valid / $total) * 100, 2);
-                        if ($percent < 25) {
-                            return 'danger';
-                        } elseif ($percent < 75) {
-                            return 'warning';
-                        } else {
-                            return 'success';
-                        }
+                        return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
                     })
                     ->state(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
@@ -221,13 +217,8 @@ class VendorResource extends Resource
                         if ($validSpam === 0) return 'gray';
                         $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
                         $percent = round(($spam / $validSpam) * 100, 2);
-                        if ($percent > 75) {
-                            return 'danger';
-                        } elseif ($percent > 25) {
-                            return 'warning';
-                        } else {
-                            return 'success';
-                        }
+                        
+                        return \App\Models\Settings::getColorForValue('spam_percent_accounts', $percent) ?? 'gray';
                     })
                     ->state(function (Vendor $record) {
                         $validSpam = $record->accounts()
@@ -309,13 +300,7 @@ class VendorResource extends Resource
                         if ($cleanTotal === 0) return 'gray';
                         $cleanValid = $record->clean_valid_accounts_count ?? $record->accounts()->where('type', 'valid')->where('spamblock', 'free')->count();
                         $percent = round(($cleanValid / $cleanTotal) * 100, 2);
-                        if ($percent < 25) {
-                            return 'danger';
-                        } elseif ($percent < 75) {
-                            return 'warning';
-                        } else {
-                            return 'success';
-                        }
+                        return \App\Models\Settings::getColorForValue('clean_percent_accounts', $percent) ?? 'gray';
                     })
                     ->state(function (Vendor $record) {
                         $cleanTotal = $record->clean_accounts_count ?? $record->accounts()->where('spamblock', 'free')->count();
@@ -353,16 +338,21 @@ class VendorResource extends Resource
 
                 Filter::make('survival_rate')
                     ->form([
-                        TextInput::make('survival_rate')
+                        \Filament\Forms\Components\TextInput::make('survival_rate_min')
                             ->numeric()
                             ->label('Мин. выживаемость (%)')
-                            ->default(0),
+                            ->default(null),
+                        \Filament\Forms\Components\TextInput::make('survival_rate_max')
+                            ->numeric()
+                            ->label('Макс. выживаемость (%)')
+                            ->default(null),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if (!empty($data['survival_rate'])) {
-                            $min = (int) $data['survival_rate'];
-                            // Исправлено: survival_rate фильтр теперь использует type = 'valid'
-                            return $query->whereRaw("
+                        $survivalRateQuery = $query;
+                        
+                        if (!empty($data['survival_rate_min'])) {
+                            $min = (float) $data['survival_rate_min'];
+                            $survivalRateQuery = $query->whereRaw("
                                 (
                                     SELECT 
                                         CASE 
@@ -375,7 +365,24 @@ class VendorResource extends Resource
                                 ) >= ?
                             ", [$min]);
                         }
-                        return $query;
+                        
+                        if (!empty($data['survival_rate_max'])) {
+                            $max = (float) $data['survival_rate_max'];
+                            $survivalRateQuery = $query->whereRaw("
+                                (
+                                    SELECT 
+                                        CASE 
+                                            WHEN COUNT(*) > 0 
+                                            THEN (SUM(CASE WHEN type = 'valid' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+                                            ELSE 0 
+                                        END
+                                    FROM accounts 
+                                    WHERE accounts.vendor_id = vendors.id
+                                ) <= ?
+                            ", [$max]);
+                        }
+                        
+                        return $survivalRateQuery;
                     }),
 
                 // Добавляем фильтр по проценту чистых аккаунтов
