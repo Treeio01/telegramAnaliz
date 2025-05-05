@@ -55,14 +55,11 @@ class VendorResource extends Resource
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
-                    ->state(' ')  // Пробел вместо пустой строки
-                    ->icon('heroicon-o-clipboard-document')  // Иконка копирования
-                    ->iconPosition('before')  // Явно указываем позицию иконки
+                    ->state('📋')  // Эмодзи буфера обмена
                     ->copyable()
                     ->copyMessageDuration(2000)
                     ->copyMessage('Скопировано')
                     ->copyableState(fn(Vendor $record) => $record->name),
-                    
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
@@ -221,7 +218,7 @@ class VendorResource extends Resource
                         if ($validSpam === 0) return 'gray';
                         $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
                         $percent = round(($spam / $validSpam) * 100, 2);
-                        
+
                         return \App\Models\Settings::getColorForValue('spam_percent_accounts', $percent) ?? 'gray';
                     })
                     ->state(function (Vendor $record) {
@@ -353,7 +350,7 @@ class VendorResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data) {
                         $survivalRateQuery = $query;
-                        
+
                         if (!empty($data['survival_rate_min'])) {
                             $min = (float) $data['survival_rate_min'];
                             $survivalRateQuery = $query->whereRaw("
@@ -369,7 +366,7 @@ class VendorResource extends Resource
                                 ) >= ?
                             ", [$min]);
                         }
-                        
+
                         if (!empty($data['survival_rate_max'])) {
                             $max = (float) $data['survival_rate_max'];
                             $survivalRateQuery = $query->whereRaw("
@@ -385,7 +382,7 @@ class VendorResource extends Resource
                                 ) <= ?
                             ", [$max]);
                         }
-                        
+
                         return $survivalRateQuery;
                     }),
 
@@ -427,7 +424,7 @@ class VendorResource extends Resource
                                     $preset = GeoPreset::find($state);
                                     $set('geo', $preset->geos);
                                 }
-                            }), 
+                            }),
 
                         Select::make('geo')
                             ->label('Гео')
@@ -473,7 +470,6 @@ class VendorResource extends Resource
                     }),
 
             ]);
-            
     }
 
     public static function form(Forms\Form $form): Forms\Form
