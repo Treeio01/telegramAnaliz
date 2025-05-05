@@ -125,10 +125,12 @@ class UploadProfile extends Page implements HasTable
             })
             ->columns([
                 TextColumn::make('copy_name')
-                    ->label('')
-                    ->state('Копировать')
-                    ->copyable()
-                    ->copyableState(fn(TempVendor $record) => $record->name),
+                ->label('')
+                ->state('Копировать')
+                ->copyable()
+                ->copyMessageDuration(2000)
+                ->copyMessage('Скопировано')
+                ->copyableState(fn(TempVendor $record) => $record->name),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
