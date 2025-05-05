@@ -82,40 +82,23 @@ class UploadPageInvite extends Page implements HasTable
                     ->label('')
                     ->state('📋')  // Эмодзи буфера обмена
                     ->extraAttributes([
-                        'x-data' => '{
-                            copyToClipboard: function(text) {
-                                try {
-                                    // Используем только запасной метод с document.execCommand
-                                    const textarea = document.createElement("textarea");
-                                    textarea.value = text;
-                                    textarea.style.position = "fixed";
-                                    textarea.style.opacity = "0";
-                                    document.body.appendChild(textarea);
-                                    textarea.select();
-                                    const success = document.execCommand("copy");
-                                    document.body.removeChild(textarea);
-                                    
-                                    if (success) {
-                                        $dispatch("notify", {
-                                            message: "Скопировано",
-                                            timeout: 2000
-                                        });
-                                    } else {
-                                        $dispatch("notify", {
-                                            message: "Не удалось скопировать",
-                                            timeout: 2000
-                                        });
-                                    }
-                                } catch (e) {
-                                    console.error("Ошибка копирования:", e);
-                                    $dispatch("notify", {
-                                        message: "Ошибка копирования",
-                                        timeout: 2000
-                                    });
-                                }
-                            }
-                        }',
-                        'x-on:click' => 'copyToClipboard($el.getAttribute("data-copy-text"))',
+                        'x-data' => '{}',
+                        'x-on:click' => '
+                            const text = $el.getAttribute("data-copy-text");
+                            const textarea = document.createElement("textarea");
+                            textarea.value = text;
+                            textarea.style.position = "fixed";
+                            textarea.style.opacity = "0";
+                            document.body.appendChild(textarea);
+                            textarea.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(textarea);
+                            
+                            $dispatch("notify", {
+                                message: "Скопировано",
+                                timeout: 2000
+                            });
+                        ',
                         'data-copy-text' => fn(TempVendor $record) => $record->name,
                         'class' => 'cursor-pointer',
                     ]),
