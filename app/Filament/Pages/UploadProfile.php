@@ -127,27 +127,31 @@ class UploadProfile extends Page implements HasTable
                 TextColumn::make('copy_name')
                     ->label('')
                     ->state('📋')  // Эмодзи буфера обмена
-                    ->extraAttributes([
-                        'x-data' => '{}',
-                        'x-on:click' => '
-                            const text = $el.getAttribute("data-copy-text");
-                            const textarea = document.createElement("textarea");
-                            textarea.value = text;
-                            textarea.style.position = "fixed";
-                            textarea.style.opacity = "0";
-                            document.body.appendChild(textarea);
-                            textarea.select();
-                            document.execCommand("copy");
-                            document.body.removeChild(textarea);
-                            
-                            $dispatch("notify", {
-                                message: "Скопировано",
-                                timeout: 2000
-                            });
-                        ',
-                        'data-copy-text' => '{record.name}',
-                        'class' => 'cursor-pointer',
-                    ]),
+                    ->formatStateUsing(fn (TempVendor $record) => '
+                        <span 
+                            x-data="{}" 
+                            x-on:click="
+                                const text = \'' . htmlspecialchars($record->name, ENT_QUOTES) . '\';
+                                const textarea = document.createElement(\'textarea\');
+                                textarea.value = text;
+                                textarea.style.position = \'fixed\';
+                                textarea.style.opacity = \'0\';
+                                document.body.appendChild(textarea);
+                                textarea.select();
+                                document.execCommand(\'copy\');
+                                document.body.removeChild(textarea);
+                                
+                                $dispatch(\'notify\', {
+                                    message: \'Скопировано\',
+                                    timeout: 2000
+                                });
+                            "
+                            class="cursor-pointer"
+                        >
+                            📋
+                        </span>
+                    ')
+                    ->html(),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
