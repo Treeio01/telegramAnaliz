@@ -125,13 +125,14 @@ class UploadProfile extends Page implements HasTable
             })
             ->columns([
                 TextColumn::make('copy_name')
-                    ->label('')
-                    ->state(fn() => '')  // Пустой текст
-                    ->icon('heroicon-o-clipboard-document')  // Иконка копирования
-                    ->copyable()
-                    ->copyMessageDuration(2000)
-                    ->copyMessage('Скопировано')
-                    ->copyableState(fn(TempVendor $record) => $record->name),
+                ->label('')
+                ->state(' ')  // Пробел вместо пустой строки
+                ->icon('heroicon-o-clipboard-document')  // Иконка копирования
+                ->iconPosition('before')  // Явно указываем позицию иконки
+                ->copyable()
+                ->copyMessageDuration(2000)
+                ->copyMessage('Скопировано')
+                ->copyableState(fn(TempVendor $record) => $record->name),
 
                 TextColumn::make('name')
                     ->label('Продавец')

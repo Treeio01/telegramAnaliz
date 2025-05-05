@@ -80,8 +80,9 @@ class UploadPageInvite extends Page implements HasTable
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
-                    ->state(fn() => '')  // Пустой текст
+                    ->state(' ')  // Пробел вместо пустой строки
                     ->icon('heroicon-o-clipboard-document')  // Иконка копирования
+                    ->iconPosition('before')  // Явно указываем позицию иконки
                     ->copyable()
                     ->copyMessageDuration(2000)
                     ->copyMessage('Скопировано')
