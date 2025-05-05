@@ -57,7 +57,9 @@ class VendorResource extends Resource
                     ->label('')
                     ->state('📋')  // Эмодзи буфера обмена
                     ->copyable()
-                    ->copyableState(fn(Vendor $record) => $record->name),
+                    ->copyableState(fn(Vendor $record): string => $record->name)
+                    ->copyMessage('Скопировано')
+                    ->copyMessageDuration(2000),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
