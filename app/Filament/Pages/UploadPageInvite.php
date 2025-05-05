@@ -83,9 +83,13 @@ class UploadPageInvite extends Page implements HasTable
                 ->state('📋')  // Эмодзи буфера обмена
                 ->formatStateUsing(fn (TempVendor $record) => '
                     <span 
-                        x-data="{}" 
-                        x-on:click="
-                            const text = \'' . htmlspecialchars($record->name, ENT_QUOTES) . '\';
+                        onclick="copyText(\'' . htmlspecialchars($record->name, ENT_QUOTES) . '\')"
+                        class="cursor-pointer"
+                    >
+                        📋
+                    </span>
+                    <script>
+                        function copyText(text) {
                             const textarea = document.createElement(\'textarea\');
                             textarea.value = text;
                             textarea.style.position = \'fixed\';
@@ -95,15 +99,9 @@ class UploadPageInvite extends Page implements HasTable
                             document.execCommand(\'copy\');
                             document.body.removeChild(textarea);
                             
-                            $dispatch(\'notify\', {
-                                message: \'Скопировано\',
-                                timeout: 2000
-                            });
-                        "
-                        class="cursor-pointer"
-                    >
-                        📋
-                    </span>
+                            alert(\'Скопировано\');
+                        }
+                    </script>
                 ')
                 ->html(),
                 TextColumn::make('name')
