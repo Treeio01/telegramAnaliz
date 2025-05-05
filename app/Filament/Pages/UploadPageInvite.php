@@ -79,31 +79,12 @@ class UploadPageInvite extends Page implements HasTable
             })
             ->columns([
                 TextColumn::make('copy_name')
-                ->label('')
-                ->state('📋')  // Эмодзи буфера обмена
-                ->formatStateUsing(fn (TempVendor $record) => '
-                    <span 
-                        onclick="copyText(\'' . htmlspecialchars($record->name, ENT_QUOTES) . '\')"
-                        class="cursor-pointer"
-                    >
-                        📋
-                    </span>
-                    <script>
-                        function copyText(text) {
-                            const textarea = document.createElement(\'textarea\');
-                            textarea.value = text;
-                            textarea.style.position = \'fixed\';
-                            textarea.style.opacity = \'0\';
-                            document.body.appendChild(textarea);
-                            textarea.select();
-                            document.execCommand(\'copy\');
-                            document.body.removeChild(textarea);
-                            
-                            alert(\'Скопировано\');
-                        }
-                    </script>
-                ')
-                ->html(),
+                    ->label('')
+                    ->state('📋')  // Эмодзи буфера обмена
+                    ->copyable()
+                    ->copyableState(fn(TempVendor $record): string => $record->name)
+                    ->copyMessage('Скопировано')
+                    ->copyMessageDuration(2000),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
