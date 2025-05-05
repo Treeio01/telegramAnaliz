@@ -74,7 +74,7 @@ class VendorResource extends Resource
                             timeout: 2000
                         });
                     ',
-                    'data-copy-text' => fn(Vendor $record) => $record->name,
+                    'data-copy-text' => '{record.name}',
                     'class' => 'cursor-pointer',
                 ]),
                 TextColumn::make('name')

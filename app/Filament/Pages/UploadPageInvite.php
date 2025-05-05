@@ -99,7 +99,7 @@ class UploadPageInvite extends Page implements HasTable
                                 timeout: 2000
                             });
                         ',
-                        'data-copy-text' => fn(TempVendor $record) => $record->name,
+                        'data-copy-text' => '{record.name}',
                         'class' => 'cursor-pointer',
                     ]),
                 TextColumn::make('name')
