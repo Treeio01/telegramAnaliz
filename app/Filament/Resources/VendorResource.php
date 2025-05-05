@@ -55,14 +55,13 @@ class VendorResource extends Resource
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
-                    ->state('Копировать')
+                    ->state(fn() => '')  // Пустой текст
+                    ->icon('heroicon-o-clipboard-document')  // Иконка копирования
                     ->copyable()
                     ->copyMessageDuration(2000)
                     ->copyMessage('Скопировано')
-                    ->copyableState(fn(Vendor $record): string => $record->name ?? '')
-                    ->extraAttributes([
-                        'x-on:click' => 'navigator.clipboard.writeText($getState())'
-                    ]),
+                    ->copyableState(fn(Vendor $record) => $record->name),
+                    
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
