@@ -82,8 +82,6 @@ class UploadPageInvite extends Page implements HasTable
                 ->label('')
                 ->state('📋')  // Эмодзи буфера обмена
                 ->copyable()
-                ->copyMessageDuration(2000)
-                ->copyMessage('Скопировано')
                 ->copyableState(fn(TempVendor $record) => $record->name),
                 TextColumn::make('name')
                     ->label('Продавец')
