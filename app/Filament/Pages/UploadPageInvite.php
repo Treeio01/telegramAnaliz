@@ -66,8 +66,8 @@ class UploadPageInvite extends Page implements HasTable
                     END as percent_worked,
                     CASE 
                         WHEN SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) = 0 THEN 0
-                        ELSE SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) / 
-                             SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END)
+                        ELSE (SUM(CASE WHEN $geoCondition THEN temp_accounts.price * temp_accounts.stats_invites_count ELSE 0 END)) /
+                             (SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END))
                     END as avg_price_per_invite
                 ");
 
