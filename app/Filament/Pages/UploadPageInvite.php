@@ -145,7 +145,18 @@ class UploadPageInvite extends Page implements HasTable
 
                 TextColumn::make('avg_price_per_invite')
                     ->label('Средняя цена инвайта')
-                    ->state(fn(TempVendor $record) => is_null($record->avg_price_per_invite) ? 0 : round($record->avg_price_per_invite, 2))
+                    ->state(function(TempVendor $record) {
+                        // Для отладки
+                        if (isset($record->total_price) && isset($record->total_invites)) {
+                            $totalPrice = $record->total_price;
+                            $totalInvites = $record->total_invites;
+                            $calculated = $totalInvites > 0 ? $totalPrice / $totalInvites : 0;
+                            return round($calculated, 2);
+                        }
+                        
+                        // Стандартное отображение
+                        return is_null($record->avg_price_per_invite) ? 0 : round($record->avg_price_per_invite, 2);
+                    })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('avg_price_per_invite', $direction);
                     }),
