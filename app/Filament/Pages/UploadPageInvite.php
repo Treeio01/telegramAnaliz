@@ -55,7 +55,7 @@ class UploadPageInvite extends Page implements HasTable
                     ? 'temp_accounts.geo IN ("' . implode('","', $geoFilters) . '")'
                     : '1=1';
 
-                $query->selectRaw("
+                    $query->selectRaw("
                     temp_vendors.*,
                     COUNT(temp_accounts.id) as total_accounts,
                     AVG(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE NULL END) as avg_invites,
@@ -64,8 +64,18 @@ class UploadPageInvite extends Page implements HasTable
                     CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE
                         (SUM(CASE WHEN $geoCondition AND temp_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id))
                     END as percent_worked,
-                    SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) / 
-                    NULLIF(SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END), 0) as avg_price_per_invite
+                    
+                    /* Диагностические поля для проверки */
+                    SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) as total_price,
+                    SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) as total_invites,
+                    
+                    /* Исправленная формула для средней цены за инвайт */
+                    CASE 
+                        WHEN SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) > 0 
+                        THEN CAST(SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) AS DECIMAL(10,2)) / 
+                             CAST(SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) AS DECIMAL(10,2))
+                        ELSE 0
+                    END as avg_price_per_invite
                 ");
 
                 $query->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
