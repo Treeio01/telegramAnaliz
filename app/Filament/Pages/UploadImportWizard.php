@@ -102,9 +102,12 @@ class UploadImportWizard extends Page
                 $json = json_decode(file_get_contents($jsonPath), true);
 
                 
-                \Illuminate\Support\Facades\Log::info($json);
-                \Illuminate\Support\Facades\Log::info(isset($json['api_data']));
-                // Проверяем наличие api_data и извлекаем данные соответственно
+                // Проверяем, является ли $json массивом с одним элементом
+                if (is_array($json) && count($json) === 1 && isset($json[0])) {
+                    $json = $json[0];
+                }
+                
+                // Извлекаем данные из api_data если есть, иначе используем сам json
                 $data = isset($json['api_data']) ? $json['api_data'] : $json;
                 $phone = $data['phone'] ?? null;
 
