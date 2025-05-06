@@ -87,9 +87,9 @@ class UploadPageInvite extends Page implements HasTable
                     ->searchable()
                     ->sortable()
                     ->url(function (TempVendor $record) {
-                        $vendor = \App\Models\Vendor::where('name', $record->name)->first();
+                        $vendor = \App\Models\TempVendor::where('name', $record->name)->first();
                         if ($vendor) {
-                            return route('vendor.profile', $vendor->id);
+                            return route('temp-vendor.profile', $vendor->id);
                         }
                         return null;
                     }),
