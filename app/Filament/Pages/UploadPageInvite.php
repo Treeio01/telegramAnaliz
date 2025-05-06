@@ -55,7 +55,7 @@ class UploadPageInvite extends Page implements HasTable
                     ? 'temp_accounts.geo IN ("' . implode('","', $geoFilters) . '")'
                     : '1=1';
 
-                    $query->selectRaw("
+                $query->selectRaw("
                     temp_vendors.*,
                     COUNT(temp_accounts.id) as total_accounts,
                     AVG(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE NULL END) as avg_invites,
@@ -145,7 +145,7 @@ class UploadPageInvite extends Page implements HasTable
 
                 TextColumn::make('avg_price_per_invite')
                     ->label('Средняя цена инвайта')
-                    ->state(function(TempVendor $record) {
+                    ->state(function (TempVendor $record) {
                         // Для отладки
                         if (isset($record->total_price) && isset($record->total_invites)) {
                             $totalPrice = $record->total_price;
@@ -153,7 +153,7 @@ class UploadPageInvite extends Page implements HasTable
                             $calculated = $totalInvites > 0 ? $totalPrice / $totalInvites : 0;
                             return round($calculated, 2);
                         }
-                        
+
                         // Стандартное отображение
                         return is_null($record->avg_price_per_invite) ? 0 : round($record->avg_price_per_invite, 2);
                     })
@@ -356,5 +356,4 @@ class UploadPageInvite extends Page implements HasTable
         // Доступ к текущим фильтрам
         return $this->tableFilters['geo']['geo'] ?? [];
     }
-
 }
