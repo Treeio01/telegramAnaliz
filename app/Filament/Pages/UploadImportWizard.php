@@ -102,8 +102,8 @@ class UploadImportWizard extends Page
                 $json = json_decode(file_get_contents($jsonPath), true);
 
                 
-                Log::info($json);
-                Log::info(isset($json['api_data']));
+                \Illuminate\Support\Facades\Log::info($json);
+                \Illuminate\Support\Facades\Log::info(isset($json['api_data']));
                 // Проверяем наличие api_data и извлекаем данные соответственно
                 $data = isset($json['api_data']) ? $json['api_data'] : $json;
                 $phone = $data['phone'] ?? null;
