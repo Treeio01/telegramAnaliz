@@ -95,7 +95,7 @@ class VendorProfile extends Page implements HasTable
                 TextColumn::make('session_created_at')->label('Дата'),
                 TextColumn::make('last_connect_at')->label('Последний коннект'),
                 TextColumn::make('stats_invites_count')->label('Инвайты'),
-                TextColumn::make('price')->label('Цена')->money('usd'),
+                TextColumn::make('price')->label('Цена')->money('rub'),
             ])->filters($this->getTableFilters());
     }
 

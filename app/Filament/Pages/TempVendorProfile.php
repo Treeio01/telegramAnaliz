@@ -71,7 +71,7 @@ class TempVendorProfile extends Page implements HasTable
                 TextColumn::make('session_created_date')->label('Дата сессии'),
                 TextColumn::make('last_connect_date')->label('Последний коннект'),
                 TextColumn::make('stats_invites_count')->label('Инвайты'),
-                TextColumn::make('price')->label('Цена')->money('usd'),
+                TextColumn::make('price')->label('Цена')->money('rub'),
             ])
             ->filters([
                 Filter::make('session_created_date_range')
