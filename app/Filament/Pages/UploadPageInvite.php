@@ -64,11 +64,8 @@ class UploadPageInvite extends Page implements HasTable
                     CASE WHEN COUNT(temp_accounts.id) = 0 THEN 0 ELSE
                         (SUM(CASE WHEN $geoCondition AND temp_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id))
                     END as percent_worked,
-                    CASE 
-                        WHEN COUNT(temp_accounts.id) = 0 THEN 0
-                        ELSE SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) / 
-                             COUNT(CASE WHEN $geoCondition THEN temp_accounts.id ELSE NULL END)
-                    END as avg_price_per_invite
+                    SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) / 
+                    NULLIF(SUM(CASE WHEN $geoCondition THEN 1 ELSE 0 END), 0) as avg_price_per_invite
                 ");
 
                 $query->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
