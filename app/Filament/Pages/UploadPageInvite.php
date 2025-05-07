@@ -148,53 +148,50 @@ class UploadPageInvite extends Page implements HasTable
                         $vendorId = $record->id;
                         $uploadId = $this->uploadId;
                         
-                        // Получаем фильтры гео
-                        $geoFilters = $this->tableFilters['geo']['geo'] ?? [];
-                        $hasGeoFilter = !empty($geoFilters);
-                        
-                        // Формируем условие для гео
-                        $geoCondition = '';
-                        $params = [$vendorId, $uploadId];
-                        
-                        if ($hasGeoFilter) {
-                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND geo IN ($placeholders)";
-                            $params = array_merge($params, $geoFilters);
-                        }
-                        
-                        // Выполняем прямой SQL-запрос для получения данных
-                        $result = DB::select("
+                        // Получаем все аккаунты продавца для отладки
+                        $accounts = DB::select("
                             SELECT 
-                                SUM(price) as total_price,
-                                SUM(stats_invites_count) as total_invites
+                                id, price, stats_invites_count, geo
                             FROM 
                                 temp_accounts
                             WHERE 
                                 temp_vendor_id = ? AND
                                 upload_id = ?
-                                $geoCondition
-                        ", $params);
+                        ", [$vendorId, $uploadId]);
                         
-                        if (empty($result)) {
-                            return 0;
+                        // Вычисляем суммы вручную и собираем отладочную информацию
+                        $totalPrice = 0;
+                        $totalInvites = 0;
+                        $debugInfo = [];
+                        
+                        foreach ($accounts as $account) {
+                            $price = (float)$account->price;
+                            $invites = (int)$account->stats_invites_count;
+                            
+                            $totalPrice += $price;
+                            $totalInvites += $invites;
+                            
+                            $debugInfo[] = "ID: {$account->id}, Price: {$price}, Invites: {$invites}, Geo: {$account->geo}";
                         }
-                        
-                        $totalPrice = $result[0]->total_price ?? 0;
-                        $totalInvites = $result[0]->total_invites ?? 0;
                         
                         // Защита от деления на ноль
                         if ($totalInvites <= 0) {
-                            return 0;
+                            return "No invites (P: $totalPrice, I: $totalInvites)";
                         }
                         
                         // Вычисляем среднюю цену за инвайт
                         $avgPrice = $totalPrice / $totalInvites;
                         
-                        // Для отладки - раскомментируйте эту строку
-                        // return "P: $totalPrice, I: $totalInvites, A: " . round($avgPrice, 2);
+                        // Для отладки - всегда показываем отладочную информацию
+                        return "P: $totalPrice, I: $totalInvites, A: " . round($avgPrice, 2) . 
+                               "\nAccounts: " . count($accounts) . 
+                               "\nVendor ID: $vendorId, Upload ID: $uploadId" . 
+                               "\n" . implode("\n", $debugInfo);
                         
-                        return round($avgPrice, 2);
-                    }),
+                        // Раскомментируйте эту строку, когда отладка будет завершена
+                        // return round($avgPrice, 2);
+                    })
+                    ->html(),
             ])
             ->filters([
                 // Фильтр "Мин. аккаунтов" не работает, потому что havingRaw требует groupBy в основном запросе.
