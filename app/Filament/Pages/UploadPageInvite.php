@@ -147,11 +147,21 @@ class UploadPageInvite extends Page implements HasTable
                         // Получаем ID продавца
                         $vendorId = $record->id;
                         
-                        // Получаем все аккаунты продавца
-                        $accounts = DB::table('temp_accounts')
-                            ->where('temp_vendor_id', $vendorId)
-                            ->select('price', 'stats_invites_count')
-                            ->get();
+                        // Получаем фильтры гео
+                        $geoFilters = $this->tableFilters['geo']['geo'] ?? [];
+                        $hasGeoFilter = !empty($geoFilters);
+                        
+                        // Создаем запрос
+                        $query = DB::table('temp_accounts')
+                            ->where('temp_vendor_id', $vendorId);
+                        
+                        // Добавляем фильтрацию по гео, если нужно
+                        if ($hasGeoFilter) {
+                            $query->whereIn('geo', $geoFilters);
+                        }
+                        
+                        // Получаем аккаунты
+                        $accounts = $query->select('price', 'stats_invites_count')->get();
                         
                         // Вычисляем суммы вручную
                         $totalPrice = 0;
