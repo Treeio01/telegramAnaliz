@@ -108,6 +108,9 @@ class UploadAssignGeoPricesPage extends Page
 
                 $accountsData = [];
                 foreach ($accounts as $data) {
+
+                    dd(isset($this->geoPrices[$data['geo']]) ? $this->geoPrices[$data['geo']] : null);
+                    dd($data)
                     $accountsData[] = [
                         'temp_vendor_id' => $tempVendor->id,
                         'upload_id' => $this->uploadId,
