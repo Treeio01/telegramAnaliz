@@ -148,6 +148,20 @@ class UploadPageInvite extends Page implements HasTable
                         $vendorId = $record->id;
                         $uploadId = $this->uploadId;
                         
+                        // Получаем фильтры гео
+                        $geoFilters = $this->tableFilters['geo']['geo'] ?? [];
+                        $hasGeoFilter = !empty($geoFilters);
+                        
+                        // Формируем условие для гео
+                        $geoCondition = '';
+                        $params = [$vendorId, $uploadId];
+                        
+                        if ($hasGeoFilter) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = array_merge($params, $geoFilters);
+                        }
+                        
                         // Выполняем прямой SQL-запрос для получения данных
                         $result = DB::select("
                             SELECT 
@@ -158,7 +172,8 @@ class UploadPageInvite extends Page implements HasTable
                             WHERE 
                                 temp_vendor_id = ? AND
                                 upload_id = ?
-                        ", [$vendorId, $uploadId]);
+                                $geoCondition
+                        ", $params);
                         
                         if (empty($result)) {
                             return 0;
@@ -175,7 +190,7 @@ class UploadPageInvite extends Page implements HasTable
                         // Вычисляем среднюю цену за инвайт
                         $avgPrice = $totalPrice / $totalInvites;
                         
-                        // Для отладки
+                        // Для отладки - раскомментируйте эту строку
                         // return "P: $totalPrice, I: $totalInvites, A: " . round($avgPrice, 2);
                         
                         return round($avgPrice, 2);
