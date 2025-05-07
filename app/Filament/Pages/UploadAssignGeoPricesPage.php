@@ -106,15 +106,25 @@ class UploadAssignGeoPricesPage extends Page
                     'upload_id' => $this->uploadId,
                 ]);
                 
+                // Находим самый часто встречающийся регион
+                $mostCommonGeo = $accounts->map(fn($acc) => $acc['geo'])
+                    ->filter()
+                    ->countBy()
+                    ->sortDesc()
+                    ->keys()
+                    ->first();
+
                 $accountsData = [];
                 foreach ($accounts as $data) {
-                    dd($data);
+                    // Если у аккаунта нет региона, используем самый частый
+                    $geo = $data['geo'] ?? $mostCommonGeo;
+                    
                     $accountsData[] = [
                         'temp_vendor_id' => $tempVendor->id,
                         'upload_id' => $this->uploadId,
                         'phone' => $data['phone'],
-                        'geo' => $data['geo'] ?? null,
-                        'price' => isset($this->geoPrices[$data['geo']]) ? $this->geoPrices[$data['geo']] : null,
+                        'geo' => $geo,
+                        'price' => $this->geoPrices[$geo],
                         'spamblock' => $data['spamblock'] ?? null,
                         'type' => $data['type'] ?? null,
                         'session_created_date' => $this->normalizeDateTime($data['session_created_date'] ?? null),
@@ -124,7 +134,6 @@ class UploadAssignGeoPricesPage extends Page
                         'updated_at' => now(),
                     ];
                 }
-                
 
                 // Массовая вставка аккаунтов
                 TempAccount::insert($accountsData);
