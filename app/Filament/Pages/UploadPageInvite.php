@@ -65,17 +65,9 @@ class UploadPageInvite extends Page implements HasTable
                         (SUM(CASE WHEN $geoCondition AND temp_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(temp_accounts.id))
                     END as percent_worked,
                     
-                    /* Диагностические поля для проверки */
+                    /* Суммы для расчета средней цены */
                     SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) as total_price,
-                    SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) as total_invites,
-                    
-                    /* Исправленная формула для средней цены за инвайт */
-                   CASE 
-    WHEN COUNT(temp_accounts.id) > 0 
-    THEN CAST(SUM(temp_accounts.price) AS DECIMAL(10,2)) / 
-         (CAST(AVG(temp_accounts.stats_invites_count) AS DECIMAL(10,2)) * COUNT(temp_accounts.id))
-    ELSE 0
-END as avg_price_per_invite
+                    SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) as total_invites
                 ");
 
                 $query->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
@@ -145,20 +137,48 @@ END as avg_price_per_invite
 
                 TextColumn::make('avg_price_per_invite')
                     ->label('Средняя цена инвайта')
-                    ->state(function (TempVendor $record) {
-                        // Для отладки
-                        if (isset($record->total_price) && isset($record->total_invites)) {
-                            $totalPrice = $record->total_price;
-                            $totalInvites = $record->total_invites;
-                            $calculated = $totalInvites > 0 ? $totalPrice / $totalInvites : 0;
-                            return round($calculated, 2);
+                    ->state(function(TempVendor $record) {
+                        // Получаем данные напрямую из базы для точного расчета
+                        $vendorId = $record->id;
+                        $geoFilters = $this->tableFilters['geo']['geo'] ?? [];
+                        $hasGeoFilter = !empty($geoFilters);
+                        
+                        $geoCondition = $hasGeoFilter
+                            ? 'geo IN ("' . implode('","', $geoFilters) . '")'
+                            : '1=1';
+                        
+                        $result = DB::select("
+                            SELECT 
+                                SUM(CASE WHEN $geoCondition THEN price ELSE 0 END) as total_price,
+                                SUM(CASE WHEN $geoCondition THEN stats_invites_count ELSE 0 END) as total_invites
+                            FROM temp_accounts
+                            WHERE temp_vendor_id = ?
+                        ", [$vendorId]);
+                        
+                        if (empty($result)) {
+                            return 0;
                         }
-
-                        // Стандартное отображение
-                        return is_null($record->avg_price_per_invite) ? 0 : round($record->avg_price_per_invite, 2);
+                        
+                        $totalPrice = $result[0]->total_price ?? 0;
+                        $totalInvites = $result[0]->total_invites ?? 0;
+                        
+                        // Защита от деления на ноль
+                        if ($totalInvites <= 0) {
+                            return 0;
+                        }
+                        
+                        // Вычисляем среднюю цену за инвайт
+                        $avgPrice = $totalPrice / $totalInvites;
+                        
+                        // Для отладки
+                        // return "P: $totalPrice, I: $totalInvites, A: " . round($avgPrice, 2);
+                        
+                        return round($avgPrice, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderBy('avg_price_per_invite', $direction);
+                        // Сортировка по вычисляемому полю
+                        $direction = strtoupper($direction);
+                        return $query->orderByRaw("CASE WHEN total_invites > 0 THEN total_price / total_invites ELSE 0 END $direction");
                     }),
             ])
             ->filters([
