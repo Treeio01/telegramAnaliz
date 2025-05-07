@@ -73,7 +73,7 @@ class UploadPageInvite extends Page implements HasTable
                    CASE 
     WHEN COUNT(temp_accounts.id) > 0 
     THEN CAST(SUM(temp_accounts.price) AS DECIMAL(10,2)) / 
-         (CAST(AVG(temp_accounts.stats_invites_count) AS DECIMAL(10,2)) * COUNT(temp_accounts.id))
+         (CAST(SUM(temp_accounts.stats_invites_count) AS DECIMAL(10,2)))
     ELSE 0
 END as avg_price_per_invite
                 ");
