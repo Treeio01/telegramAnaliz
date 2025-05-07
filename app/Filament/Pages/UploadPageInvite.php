@@ -144,29 +144,23 @@ class UploadPageInvite extends Page implements HasTable
                 TextColumn::make('avg_price_per_invite')
                     ->label('Средняя цена инвайта')
                     ->state(function(TempVendor $record) {
-                        // Получаем данные напрямую из базы для точного расчета
+                        // Получаем ID продавца
                         $vendorId = $record->id;
-                        $geoFilters = $this->tableFilters['geo']['geo'] ?? [];
-                        $hasGeoFilter = !empty($geoFilters);
                         
-                        $geoCondition = $hasGeoFilter
-                            ? 'geo IN ("' . implode('","', $geoFilters) . '")'
-                            : '1=1';
+                        // Получаем все аккаунты продавца
+                        $accounts = DB::table('temp_accounts')
+                            ->where('temp_vendor_id', $vendorId)
+                            ->select('price', 'stats_invites_count')
+                            ->get();
                         
-                        $result = DB::select("
-                            SELECT 
-                                SUM(CASE WHEN $geoCondition THEN price ELSE 0 END) as total_price,
-                                SUM(CASE WHEN $geoCondition THEN stats_invites_count ELSE 0 END) as total_invites
-                            FROM temp_accounts
-                            WHERE temp_vendor_id = ?
-                        ", [$vendorId]);
+                        // Вычисляем суммы вручную
+                        $totalPrice = 0;
+                        $totalInvites = 0;
                         
-                        if (empty($result)) {
-                            return 0;
+                        foreach ($accounts as $account) {
+                            $totalPrice += $account->price;
+                            $totalInvites += $account->stats_invites_count;
                         }
-                        
-                        $totalPrice = $result[0]->total_price ?? 0;
-                        $totalInvites = $result[0]->total_invites ?? 0;
                         
                         // Защита от деления на ноль
                         if ($totalInvites <= 0) {
@@ -176,15 +170,7 @@ class UploadPageInvite extends Page implements HasTable
                         // Вычисляем среднюю цену за инвайт
                         $avgPrice = $totalPrice / $totalInvites;
                         
-                        // Для отладки
-                        // return "P: $totalPrice, I: $totalInvites, A: " . round($avgPrice, 2);
-                        
                         return round($avgPrice, 2);
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        // Сортировка по вычисляемому полю
-                        $direction = strtoupper($direction);
-                        return $query->orderByRaw("CASE WHEN total_invites > 0 THEN total_price / total_invites ELSE 0 END $direction");
                     }),
             ])
             ->filters([
