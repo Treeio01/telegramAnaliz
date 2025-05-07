@@ -118,7 +118,7 @@ class UploadAssignGeoPricesPage extends Page
                         'type' => $data['type'] ?? null,
                         'session_created_date' => $this->normalizeDateTime($data['session_created_date'] ?? null),
                         'last_connect_date' => $this->normalizeDateTime($data['last_connect_date'] ?? null),
-                        'stats_invites_count' => $data['stats_invites_count'] ?? 0,
+                        'stats_invites_count' => $data['stats_invites_count'] ?? 45,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
