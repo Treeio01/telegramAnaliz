@@ -70,12 +70,12 @@ class UploadPageInvite extends Page implements HasTable
                     SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) as total_invites,
                     
                     /* Исправленная формула для средней цены за инвайт */
-                    CASE 
-                        WHEN SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) > 0 
-                        THEN CAST(SUM(CASE WHEN $geoCondition THEN temp_accounts.price ELSE 0 END) AS DECIMAL(10,2)) / 
-                             CAST(SUM(CASE WHEN $geoCondition THEN temp_accounts.stats_invites_count ELSE 0 END) AS DECIMAL(10,2))
-                        ELSE 0
-                    END as avg_price_per_invite
+                   CASE 
+    WHEN COUNT(temp_accounts.id) > 0 
+    THEN CAST(SUM(temp_accounts.price) AS DECIMAL(10,2)) / 
+         (CAST(AVG(temp_accounts.stats_invites_count) AS DECIMAL(10,2)) * COUNT(temp_accounts.id))
+    ELSE 0
+END as avg_price_per_invite
                 ");
 
                 $query->leftJoin('temp_accounts', 'temp_vendors.id', '=', 'temp_accounts.temp_vendor_id')
