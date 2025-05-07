@@ -105,12 +105,10 @@ class UploadAssignGeoPricesPage extends Page
                     'name' => $role ?? 'unknown',
                     'upload_id' => $this->uploadId,
                 ]);
-
+                dd($data);
                 $accountsData = [];
                 foreach ($accounts as $data) {
-
-                    dd(isset($this->geoPrices[$data['geo']]) ? $this->geoPrices[$data['geo']] : null);
-                    dd($data)
+                    $data['stats_invites_count'] = 45;
                     $accountsData[] = [
                         'temp_vendor_id' => $tempVendor->id,
                         'upload_id' => $this->uploadId,
@@ -121,7 +119,7 @@ class UploadAssignGeoPricesPage extends Page
                         'type' => $data['type'] ?? null,
                         'session_created_date' => $this->normalizeDateTime($data['session_created_date'] ?? null),
                         'last_connect_date' => $this->normalizeDateTime($data['last_connect_date'] ?? null),
-                        'stats_invites_count' => $data['stats_invites_count'] ?? 45,
+                        'stats_invites_count' => $data['stats_invites_count'] ?? 0,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
