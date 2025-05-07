@@ -105,10 +105,10 @@ class UploadAssignGeoPricesPage extends Page
                     'name' => $role ?? 'unknown',
                     'upload_id' => $this->uploadId,
                 ]);
-                dd($data);
+                
                 $accountsData = [];
                 foreach ($accounts as $data) {
-                    $data['stats_invites_count'] = 45;
+                    dd($data);
                     $accountsData[] = [
                         'temp_vendor_id' => $tempVendor->id,
                         'upload_id' => $this->uploadId,
