@@ -28,7 +28,7 @@ class TempVendorProfile extends Page implements HasTable
     
     public function mount($id): void
     {
-        $this->tempVendor = TempVendor::findOrFail($id);
+        $this->tempVendor = TempVendor::where('name', $id)->first();
     }
     
     public function getGeoList()
