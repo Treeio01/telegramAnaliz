@@ -194,6 +194,9 @@ class UploadPageInvite extends Page implements HasTable
                         // return "P: $totalPrice, I: $totalInvites, A: " . round($avgPrice, 2);
                         
                         return round($avgPrice, 2);
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('avg_price_per_invite', $direction);
                     }),
             ])
             ->filters([
