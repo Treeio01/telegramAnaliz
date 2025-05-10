@@ -13,6 +13,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
 use App\Models\GeoPreset;
+use Illuminate\Support\Facades\DB;
 
 class StatsResource extends Resource
 {
@@ -87,10 +88,49 @@ class StatsResource extends Resource
                     ->label('Средняя цена инвайта')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        $accounts = $record->accounts()->get();
-                        $totalPrice = $accounts->sum('price');
-                        $totalInvites = $accounts->sum('stats_invites_count');
-                        return $totalInvites > 0 ? $totalPrice / $totalInvites : 0;
+                        // Получаем ID продавца
+                        $vendorId = $record->id;
+                        
+                        // Получаем фильтры гео
+                        $geoFilters = request('tableFilters.geo.geo', []);
+                        $hasGeoFilter = !empty($geoFilters);
+                        
+                        // Формируем условие для гео
+                        $geoCondition = '';
+                        $params = [$vendorId];
+                        
+                        if ($hasGeoFilter) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = array_merge($params, $geoFilters);
+                        }
+                        
+                        // Выполняем прямой SQL-запрос для получения данных
+                        $result = DB::select("
+                            SELECT 
+                                SUM(price) as total_price,
+                                SUM(stats_invites_count) as total_invites
+                            FROM 
+                                accounts
+                            WHERE 
+                                vendor_id = ?
+                                $geoCondition
+                        ", $params);
+                        
+                        if (empty($result)) {
+                            return 0;
+                        }
+                        
+                        $totalPrice = $result[0]->total_price ?? 0;
+                        $totalInvites = $result[0]->total_invites ?? 0;
+                        
+                        // Защита от деления на ноль
+                        if ($totalInvites <= 0) {
+                            return 0;
+                        }
+                        
+                        // Вычисляем среднюю цену за инвайт
+                        return round($totalPrice / $totalInvites, 2);
                     })
                     ->sortable(),
 
@@ -176,10 +216,6 @@ class StatsResource extends Resource
                             ->numeric()
                             ->default(0)
                             ->live()
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                // При изменении цены обновляем страницу
-                                $set('sold_price', $state);
-                            }),
                     ])
                     ->query(function (Builder $query, array $data) {
                         // Не фильтруем, просто сохраняем значение для расчетов
