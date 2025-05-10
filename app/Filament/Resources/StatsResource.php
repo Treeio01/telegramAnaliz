@@ -26,7 +26,6 @@ class StatsResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
-            ->live()
             ->modifyQueryUsing(function (Builder $query) {
                 return $query
                     ->withCount([
@@ -177,12 +176,17 @@ class StatsResource extends Resource
                             ->numeric()
                             ->default(0)
                             ->live()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                // При изменении цены обновляем страницу
+                                $set('sold_price', $state);
+                            }),
                     ])
                     ->query(function (Builder $query, array $data) {
                         // Не фильтруем, просто сохраняем значение для расчетов
                         return $query;
                     }),
-            ]);
+            ])
+            ->persistFiltersInSession(); // Сохраняем фильтры в сессии
     }
 
     public static function getPages(): array
