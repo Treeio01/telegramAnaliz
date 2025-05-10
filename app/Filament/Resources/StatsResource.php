@@ -40,14 +40,22 @@ class StatsResource extends Resource
                     ]);
             })
             ->columns([
+                TextColumn::make('copy_name')
+                    ->label('')
+                    ->state('📋')  // Эмодзи буфера обмена
+                    ->copyable()
+                    ->copyableState(fn(Vendor $record): string => $record->name)
+                    ->copyMessage('Скопировано')
+                    ->copyMessageDuration(2000),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
 
                 TextColumn::make('survival_percent')
                     ->label('Процент выживаемости')
-                    ->formatStateUsing(fn ($state) => number_format($state, 2) . '%')
+                    ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
                     ->color(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 'gray';
@@ -90,21 +98,21 @@ class StatsResource extends Resource
                     ->state(function (Vendor $record) {
                         // Получаем ID продавца
                         $vendorId = $record->id;
-                        
+
                         // Получаем фильтры гео
                         $geoFilters = request('tableFilters.geo.geo', []);
                         $hasGeoFilter = !empty($geoFilters);
-                        
+
                         // Формируем условие для гео
                         $geoCondition = '';
                         $params = [$vendorId];
-                        
+
                         if ($hasGeoFilter) {
                             $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
                             $geoCondition = "AND geo IN ($placeholders)";
                             $params = array_merge($params, $geoFilters);
                         }
-                        
+
                         // Выполняем прямой SQL-запрос для получения данных
                         $result = DB::select("
                             SELECT 
@@ -116,19 +124,19 @@ class StatsResource extends Resource
                                 vendor_id = ?
                                 $geoCondition
                         ", $params);
-                        
+
                         if (empty($result)) {
                             return 0;
                         }
-                        
+
                         $totalPrice = $result[0]->total_price ?? 0;
                         $totalInvites = $result[0]->total_invites ?? 0;
-                        
+
                         // Защита от деления на ноль
                         if ($totalInvites <= 0) {
                             return 0;
                         }
-                        
+
                         // Вычисляем среднюю цену за инвайт
                         return round($totalPrice / $totalInvites, 2);
                     })
@@ -144,7 +152,7 @@ class StatsResource extends Resource
                 TextColumn::make('total_profit')
                     ->label('Итог')
                     ->money('RUB')
-                    ->color(fn ($state) => $state >= 0 ? 'success' : 'danger')
+                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
                         $spent = $record->accounts()->sum('price');
                         $soldPrice = request('tableFilters.sold_price.sold_price', 0);
