@@ -117,7 +117,8 @@ class StatsResource extends Resource
                         $result = DB::select("
                             SELECT 
                                 SUM(price) as total_price,
-                                SUM(stats_invites_count) as total_invites
+                                COUNT(*) as total_accounts,
+                                AVG(stats_invites_count) as avg_invites
                             FROM 
                                 accounts
                             WHERE 
@@ -130,15 +131,16 @@ class StatsResource extends Resource
                         }
 
                         $totalPrice = $result[0]->total_price ?? 0;
-                        $totalInvites = $result[0]->total_invites ?? 0;
+                        $totalAccounts = $result[0]->total_accounts ?? 0;
+                        $avgInvites = $result[0]->avg_invites ?? 0;
 
                         // Защита от деления на ноль
-                        if ($totalInvites <= 0) {
+                        if ($totalAccounts === 0 || $avgInvites === 0) {
                             return 0;
                         }
 
-                        // Вычисляем среднюю цену за инвайт
-                        return round($totalPrice / $totalInvites, 2);
+                        // Вычисляем среднюю цену за инвайт по формуле из примера
+                        return round($totalPrice / ($avgInvites * $totalAccounts), 2);
                     })
                     ->sortable(),
 
