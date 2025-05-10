@@ -19,10 +19,11 @@ use Filament\Forms\Components\Select;
 use App\Models\GeoPreset;
 use Filament\Forms\Components\DatePicker;
 use Illuminate\Support\Facades\DB;
+use App\Models\Vendor;
 
 class InviteResource extends Resource
 {
-    protected static ?string $model = Account::class;
+    protected static ?string $model = Vendor::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
     protected static ?string $navigationLabel = 'Инвайты';
@@ -37,7 +38,7 @@ class InviteResource extends Resource
 
         return $table
             ->query(function () use ($hasGeoFilter, $geoFilters) {
-                $query = Account::query();
+                $query = Vendor::query();
 
                 // Формируем условие для гео
                 $geoCondition = $hasGeoFilter
@@ -45,7 +46,7 @@ class InviteResource extends Resource
                     : '1=1';
 
                 $query->selectRaw("
-                    accounts.*,
+                    vendors.*,
                     COUNT(accounts.id) as total_accounts,
                     AVG(CASE WHEN $geoCondition THEN accounts.stats_invites_count ELSE NULL END) as avg_invites,
                     SUM(CASE WHEN $geoCondition AND accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) as worked_accounts,
@@ -63,9 +64,9 @@ class InviteResource extends Resource
                              (CAST(AVG(accounts.stats_invites_count) AS DECIMAL(10,2)) * COUNT(accounts.id))
                         ELSE 0
                     END as avg_price_per_invite
-                ");
-
-                $query->groupBy('accounts.id');
+                ")
+                ->leftJoin('accounts', 'vendors.id', '=', 'accounts.vendor_id')
+                ->groupBy('vendors.id');
 
                 return $query;
             })
@@ -74,42 +75,42 @@ class InviteResource extends Resource
                     ->label('')
                     ->state('📋')  // Эмодзи буфера обмена
                     ->copyable()
-                    ->copyableState(fn(Account $record): string => $record->name)
+                    ->copyableState(fn(Vendor $record): string => $record->name)
                     ->copyMessage('Скопировано')
                     ->copyMessageDuration(2000),
                 TextColumn::make('name')
-                    ->label('Аккаунт')
+                    ->label('Продавец')
                     ->searchable()
                     ->sortable()
-                    ->url(fn(Account $record): string => route('account.profile', $record->id)),
+                    ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
                 TextColumn::make('total_accounts')
                     ->label('Кол-во аккаунтов')
-                    ->state(fn(Account $record) => $record->total_accounts)
+                    ->state(fn(Vendor $record) => $record->total_accounts ?? 0)
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('total_accounts', $direction);
                     }),
                 TextColumn::make('avg_invites')
                     ->label('Среднее кол-во инвайта')
-                    ->state(fn(Account $record) => is_null($record->avg_invites) ? 0 : round($record->avg_invites, 2))
+                    ->state(fn(Vendor $record) => is_null($record->avg_invites) ? 0 : round($record->avg_invites, 2))
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('avg_invites', $direction);
                     }),
                 TextColumn::make('worked_accounts')
                     ->label('Отработали')
-                    ->state(fn(Account $record) => $record->worked_accounts)
+                    ->state(fn(Vendor $record) => $record->worked_accounts ?? 0)
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('worked_accounts', $direction);
                     }),
                 TextColumn::make('zero_accounts')
                     ->label('Нулевые')
-                    ->state(fn(Account $record) => $record->zero_accounts)
+                    ->state(fn(Vendor $record) => $record->zero_accounts ?? 0)
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('zero_accounts', $direction);
                     }),
                 TextColumn::make('percent_worked')
                     ->label('% рабочих')
-                    ->state(fn(Account $record) => is_null($record->percent_worked) ? 0 : round($record->percent_worked, 2))
-                    ->color(function (Account $record) {
+                    ->state(fn(Vendor $record) => is_null($record->percent_worked) ? 0 : round($record->percent_worked, 2))
+                    ->color(function (Vendor $record) {
                         $percent = $record->percent_worked ?? 0;
                         return \App\Models\Settings::getColorForValue('percent_worked', $percent);
                     })
@@ -118,24 +119,24 @@ class InviteResource extends Resource
                     }),
                 TextColumn::make('avg_price_per_invite')
                     ->label('Средняя цена инвайта')
-                    ->state(function(Account $record) {
-                        // Получаем ID аккаунта
-                        $accountId = $record->id;
-                        
+                    ->state(function (Vendor $record) {
+                        // Получаем ID продавца
+                        $vendorId = $record->id;
+
                         // Получаем фильтры гео
-                        $geoFilters = $this->tableFilters['geo']['geo'] ?? [];
+                        $geoFilters = request('tableFilters.geo.geo', []);
                         $hasGeoFilter = !empty($geoFilters);
-                        
+
                         // Формируем условие для гео
                         $geoCondition = '';
-                        $params = [$accountId];
-                        
+                        $params = [$vendorId];
+
                         if ($hasGeoFilter) {
                             $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
                             $geoCondition = "AND geo IN ($placeholders)";
                             $params = array_merge($params, $geoFilters);
                         }
-                        
+
                         // Выполняем прямой SQL-запрос для получения данных
                         $result = DB::select("
                             SELECT 
@@ -144,25 +145,25 @@ class InviteResource extends Resource
                             FROM 
                                 accounts
                             WHERE 
-                                id = ?
+                                vendor_id = ?
                                 $geoCondition
                         ", $params);
-                        
+
                         if (empty($result)) {
                             return 0;
                         }
-                        
+
                         $totalPrice = $result[0]->total_price ?? 0;
                         $totalInvites = $result[0]->total_invites ?? 0;
-                        
+
                         // Защита от деления на ноль
                         if ($totalInvites <= 0) {
                             return 0;
                         }
-                        
+
                         // Вычисляем среднюю цену за инвайт
                         $avgPrice = $totalPrice / $totalInvites;
-                        
+
                         return round($avgPrice, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
@@ -180,12 +181,9 @@ class InviteResource extends Resource
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['min_accounts'])) {
                             $min = (int) $data['min_accounts'];
-                            return $query->whereRaw('
-                                (
-                                    SELECT COUNT(a.id)
-                                    FROM accounts a
-                                    WHERE a.id = accounts.id
-                                ) >= ?', [$min]);
+                            return $query->whereHas('accounts', function ($query) use ($min) {
+                                $query->havingRaw('COUNT(accounts.id) >= ?', [$min]);
+                            });
                         }
                         return $query;
                     }),
@@ -212,7 +210,7 @@ class InviteResource extends Resource
                                             (SUM(CASE WHEN a.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(a.id))
                                         END
                                     FROM accounts a
-                                    WHERE a.id = accounts.id
+                                    WHERE a.vendor_id = vendors.id
                                 ) >= ?', [$min]);
                         }
                         if ($max !== null) {
@@ -223,7 +221,7 @@ class InviteResource extends Resource
                                             (SUM(CASE WHEN a.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(a.id))
                                         END
                                     FROM accounts a
-                                    WHERE a.id = accounts.id
+                                    WHERE a.vendor_id = vendors.id
                                 ) <= ?', [$max]);
                         }
                         return $query;
@@ -255,8 +253,9 @@ class InviteResource extends Resource
                         session(['current_geo_filters' => $data['geo'] ?? []]);
                         if (!empty($data['geo'])) {
                             $geo = $data['geo'];
-                            $query->whereIn('geo', $geo);
-                            $this->tableFilters['geo']['geo'] = $geo;
+                            $query->whereHas('accounts', function ($query) use ($geo) {
+                                $query->whereIn('geo', $geo);
+                            });
                         }
                         return $query;
                     }),
@@ -269,10 +268,14 @@ class InviteResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['session_created_from'])) {
-                            $query->whereDate('session_created_at', '>=', $data['session_created_from']);
+                            $query->whereHas('accounts', function ($query) use ($data) {
+                                $query->whereDate('session_created_at', '>=', $data['session_created_from']);
+                            });
                         }
                         if (!empty($data['session_created_to'])) {
-                            $query->whereDate('session_created_at', '<=', $data['session_created_to']);
+                            $query->whereHas('accounts', function ($query) use ($data) {
+                                $query->whereDate('session_created_at', '<=', $data['session_created_to']);
+                            });
                         }
                         return $query;
                     }),
