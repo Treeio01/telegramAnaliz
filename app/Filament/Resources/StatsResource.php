@@ -134,13 +134,18 @@ class StatsResource extends Resource
                         $totalAccounts = $result[0]->total_accounts ?? 0;
                         $avgInvites = $result[0]->avg_invites ?? 0;
 
-                        // Защита от деления на ноль
-                        if ($totalAccounts === 0 || $avgInvites === 0) {
+                        // Проверяем все возможные случаи деления на ноль
+                        if ($totalAccounts === 0 || $avgInvites === 0 || $totalPrice === 0) {
                             return 0;
                         }
 
                         // Вычисляем среднюю цену за инвайт по формуле из примера
-                        return round($totalPrice / ($avgInvites * $totalAccounts), 2);
+                        $denominator = $avgInvites * $totalAccounts;
+                        if ($denominator === 0) {
+                            return 0;
+                        }
+
+                        return round($totalPrice / $denominator, 2);
                     })
                     ->sortable(),
 
