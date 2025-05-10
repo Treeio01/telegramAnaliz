@@ -113,12 +113,14 @@ class StatsResource extends Resource
                             $params = array_merge($params, $geoFilters);
                         }
 
-                        // Выполняем прямой SQL-запрос для получения данных
+                        // Выполняем прямой SQL-запрос с использованием NULLIF для предотвращения деления на ноль
                         $result = DB::select("
                             SELECT 
-                                SUM(price) as total_price,
-                                COUNT(*) as total_accounts,
-                                AVG(stats_invites_count) as avg_invites
+                                CASE 
+                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                         (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                END as avg_price
                             FROM 
                                 accounts
                             WHERE 
@@ -130,22 +132,7 @@ class StatsResource extends Resource
                             return 0;
                         }
 
-                        $totalPrice = $result[0]->total_price ?? 0;
-                        $totalAccounts = $result[0]->total_accounts ?? 0;
-                        $avgInvites = $result[0]->avg_invites ?? 0;
-
-                        // Проверяем все возможные случаи деления на ноль
-                        if ($totalAccounts === 0 || $avgInvites === 0 || $totalPrice === 0) {
-                            return 0;
-                        }
-
-                        // Вычисляем среднюю цену за инвайт по формуле из примера
-                        $denominator = $avgInvites * $totalAccounts;
-                        if ($denominator === 0) {
-                            return 0;
-                        }
-
-                        return round($totalPrice / $denominator, 2);
+                        return round($result[0]->avg_price ?? 0, 2);
                     })
                     ->sortable(),
 
