@@ -20,9 +20,9 @@ class StatsResource extends Resource
     protected static ?string $model = Vendor::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
-    protected static ?string $navigationLabel = 'Статистика';
+    protected static ?string $navigationLabel = 'Доход';
     protected static ?string $navigationGroup = 'Управление';
-    protected static ?string $title = 'Статистика';
+    protected static ?string $title = 'Доход';
 
     public static function table(Tables\Table $table): Tables\Table
     {
