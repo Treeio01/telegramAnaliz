@@ -26,6 +26,7 @@ class StatsResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
+            ->live()
             ->modifyQueryUsing(function (Builder $query) {
                 return $query
                     ->withCount([
@@ -78,7 +79,7 @@ class StatsResource extends Resource
                     ->label('Заработано')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        $soldPrice = request('sold_price', 0);
+                        $soldPrice = request('tableFilters.sold_price.sold_price', 0);
                         return $record->valid_accounts_count * $soldPrice;
                     })
                     ->sortable(),
@@ -107,7 +108,7 @@ class StatsResource extends Resource
                     ->color(fn ($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
                         $spent = $record->accounts()->sum('price');
-                        $soldPrice = request('sold_price', 0);
+                        $soldPrice = request('tableFilters.sold_price.sold_price', 0);
                         $earned = $record->valid_accounts_count * $soldPrice;
                         return $earned - $spent;
                     })
