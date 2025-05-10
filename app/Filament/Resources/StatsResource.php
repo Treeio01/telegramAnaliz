@@ -79,9 +79,7 @@ class StatsResource extends Resource
                     ->money('RUB')
                     ->state(function (Vendor $record) {
                         $soldPrice = request('sold_price', 0);
-                        return $record->accounts()
-                            ->where('type', 'valid')
-                            ->count() * $soldPrice;
+                        return $record->valid_accounts_count * $soldPrice;
                     })
                     ->sortable(),
 
@@ -110,9 +108,7 @@ class StatsResource extends Resource
                     ->state(function (Vendor $record) {
                         $spent = $record->accounts()->sum('price');
                         $soldPrice = request('sold_price', 0);
-                        $earned = $record->accounts()
-                            ->where('type', 'valid')
-                            ->count() * $soldPrice;
+                        $earned = $record->valid_accounts_count * $soldPrice;
                         return $earned - $spent;
                     })
                     ->sortable(),
@@ -180,11 +176,9 @@ class StatsResource extends Resource
                             ->numeric()
                             ->default(0)
                             ->live()
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                $set('sold_price', $state);
-                            }),
                     ])
                     ->query(function (Builder $query, array $data) {
+                        // Не фильтруем, просто сохраняем значение для расчетов
                         return $query;
                     }),
             ]);
