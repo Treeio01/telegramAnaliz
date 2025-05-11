@@ -172,6 +172,19 @@ class InviteResource extends Resource
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('avg_price_per_invite', $direction);
                     }),
+                TextColumn::make('total_spent')
+                    ->label('Потрачено')
+                    ->money('RUB')
+                    ->state(function (Vendor $record) {
+                        return $record->accounts()->sum('price');
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw("(
+                            SELECT SUM(price)
+                            FROM accounts
+                            WHERE vendor_id = vendors.id
+                        ) $direction");
+                    }),
             ])
             ->filters([
                 Filter::make('min_accounts')
