@@ -120,7 +120,7 @@ class UploadAssignGeoPricesPage extends Page
                     $geo = $data['geo'] ?? $mostCommonGeo;
                     
                     $accountsData[] = [
-                        'temp_vendor_id' => $tempVendor->name,
+                        'temp_vendor_id' => $tempVendor->id,
                         'upload_id' => $this->uploadId,
                         'phone' => $data['phone'] ?? null,
                         'geo' => $geo ?? null,
