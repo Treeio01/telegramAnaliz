@@ -75,7 +75,7 @@ class StatsResource extends Resource
                     ->label('Кол-во акков')
                     ->sortable(),
 
-                TextColumn::make('total_spent')
+                TextColumn::make('survival_spent')
                     ->label('Потрачено')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
@@ -87,7 +87,7 @@ class StatsResource extends Resource
                             ->orderBy('accounts_sum_price', $direction);
                     }),
 
-                TextColumn::make('total_earned')
+                TextColumn::make('survival_earned')
                     ->label('Заработано')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
@@ -163,6 +163,13 @@ class StatsResource extends Resource
                             ) $direction", $params);
                     }),
 
+                TextColumn::make('invites_accounts_count')
+                    ->label('Кол-во акков')
+                    ->state(function (Vendor $record) {
+                        return $record->accounts()->count();
+                    })
+                    ->sortable(),
+
                 TextColumn::make('total_invites')
                     ->label('Сумма инвайтов')
                     ->state(function (Vendor $record) {
@@ -172,6 +179,34 @@ class StatsResource extends Resource
                         return $query
                             ->withSum('accounts', 'stats_invites_count')
                             ->orderBy('accounts_sum_stats_invites_count', $direction);
+                    }),
+
+                TextColumn::make('invites_spent')
+                    ->label('Потрачено')
+                    ->money('RUB')
+                    ->state(function (Vendor $record) {
+                        return $record->accounts()->sum('price');
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query
+                            ->withSum('accounts', 'price')
+                            ->orderBy('accounts_sum_price', $direction);
+                    }),
+
+                TextColumn::make('invites_earned')
+                    ->label('Заработано')
+                    ->money('RUB')
+                    ->state(function (Vendor $record) {
+                        $soldPrice = session('tableFilters.stats.sold_price.sold_price', 0);
+                        return $record->valid_accounts_count * $soldPrice;
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        $soldPrice = session('tableFilters.stats.sold_price.sold_price', 0);
+                        return $query
+                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
+                                $q->where('type', 'valid');
+                            }])
+                            ->orderByRaw("valid_accounts_count * ? {$direction}", [$soldPrice]);
                     }),
 
                 TextColumn::make('total_profit')
