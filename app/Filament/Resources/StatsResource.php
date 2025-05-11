@@ -184,7 +184,17 @@ class StatsResource extends Resource
                         $earned = $record->valid_accounts_count * $soldPrice;
                         return $earned - $spent;
                     })
-                    ->sortable(),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        $soldPrice = session('tableFilters.stats.sold_price.sold_price', 0);
+                        return $query
+                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
+                                $q->where('type', 'valid');
+                            }])
+                            ->withSum('accounts', 'price')
+                            ->orderByRaw("(valid_accounts_count * ? - COALESCE(accounts_sum_price, 0)) {$direction}", 
+                                [$soldPrice]
+                            );
+                    }),
             ])
             ->filters([
                 Filter::make('geo')
