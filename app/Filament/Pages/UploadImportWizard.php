@@ -98,6 +98,8 @@ class UploadImportWizard extends Page
 
     private function processFiles($files, &$allNormalizedAccounts, &$allGeoWithMissingPrices, &$originalNames, $type)
     {
+
+        Log::info('Processing files', ['count' => count($files)]);
         foreach ($files as $zipFile) {
             Log::info('Processing zip file', [
                 'original_name' => $zipFile->getClientOriginalName(),
