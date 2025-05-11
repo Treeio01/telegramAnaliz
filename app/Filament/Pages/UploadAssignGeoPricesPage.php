@@ -25,6 +25,7 @@ use Filament\Tables\Filters\BaseFilter;
 use App\Models\TempVendor;
 use App\Models\TempAccount;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class UploadAssignGeoPricesPage extends Page
 {
@@ -44,16 +45,29 @@ class UploadAssignGeoPricesPage extends Page
 
     public function mount(): void
     {
+        Log::info('Mounting UploadAssignGeoPricesPage');
+        
         $this->uploadId = request()->query('uploadId');
+        Log::debug('Upload ID received', ['uploadId' => $this->uploadId]);
+        
         $geoList = session()->get("geo_list_for_upload_{$this->uploadId}", []);
         $this->isInvite = session()->get("is_invite_{$this->uploadId}", false);
         
+        Log::debug('Session data retrieved', [
+            'geoList' => $geoList,
+            'isInvite' => $this->isInvite
+        ]);
 
         $this->geoList = $geoList;
         $this->geoPrices = [];
 
         foreach ($geoList as $geo) {
-            $this->geoPrices[$geo] = GeoPrice::where('geo', $geo)->value('price') ?? null;
+            $price = GeoPrice::where('geo', $geo)->value('price') ?? null;
+            $this->geoPrices[$geo] = $price;
+            Log::debug('Retrieved price for geo', [
+                'geo' => $geo,
+                'price' => $price
+            ]);
         }
     }
 
@@ -64,59 +78,76 @@ class UploadAssignGeoPricesPage extends Page
     protected function normalizeDateTime($value)
     {
         if (empty($value)) {
+            Log::debug('Empty date value received');
             return null;
         }
 
-        // Попробуем распарсить с помощью Carbon
         try {
-            // Carbon сам распознает большинство ISO 8601 форматов
             $dt = Carbon::parse($value);
-            return $dt->format('Y-m-d H:i:s');
+            $formatted = $dt->format('Y-m-d H:i:s');
+            Log::debug('Date normalized successfully', [
+                'input' => $value,
+                'output' => $formatted
+            ]);
+            return $formatted;
         } catch (\Exception $e) {
-            // Если не удалось, возвращаем null
+            Log::warning('Failed to parse date', [
+                'input' => $value,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
     }
 
     public function submit()
     {
+        Log::info('Starting submit process');
+
         $missingPrices = collect($this->geoPrices)->filter(fn($price) => $price === null || $price === '');
 
         if ($missingPrices->isNotEmpty()) {
+            Log::warning('Missing prices detected', ['missing' => $missingPrices->keys()]);
             $this->addError('geoPrices', 'Необходимо задать цену для всех стран.');
             return;
         }
 
+        Log::info('Updating GeoPrice records');
         foreach ($this->geoPrices as $geo => $price) {
             GeoPrice::updateOrCreate(
                 ['geo' => $geo],
                 ['price' => $price]
             );
+            Log::debug('GeoPrice updated', ['geo' => $geo, 'price' => $price]);
         }
 
         $uploadData = session()->get("upload_data_{$this->uploadId}", []);
+        Log::debug('Retrieved upload data from session', ['count' => count($uploadData)]);
         
-        // Группируем данные по ролям (вендорам)
         $groupedData = collect($uploadData)->groupBy('role');
+        Log::info('Data grouped by role', ['roles' => $groupedData->keys()]);
 
         DB::transaction(function () use ($groupedData) {
+            Log::info('Starting database transaction');
+            
             foreach ($groupedData as $role => $accounts) {
+                Log::debug('Processing role', ['role' => $role, 'accounts_count' => count($accounts)]);
+                
                 $tempVendor = TempVendor::create([
                     'name' => $role ?? 'unknown',
                     'upload_id' => $this->uploadId,
                 ]);
+                Log::debug('Created TempVendor', ['id' => $tempVendor->id, 'name' => $tempVendor->name]);
                 
-                // Находим самый часто встречающийся регион
                 $mostCommonGeo = $accounts->map(fn($acc) => $acc['geo'])
                     ->filter()
                     ->countBy()
                     ->sortDesc()
                     ->keys()
                     ->first();
+                Log::debug('Determined most common geo', ['geo' => $mostCommonGeo]);
 
                 $accountsData = [];
                 foreach ($accounts as $data) {
-                    // Если у аккаунта нет региона, используем самый частый
                     $geo = $data['geo'] ?? $mostCommonGeo;
                     
                     $accountsData[] = [
@@ -135,17 +166,21 @@ class UploadAssignGeoPricesPage extends Page
                     ];
                 }
 
-                // Массовая вставка аккаунтов
+                Log::debug('Inserting accounts batch', ['count' => count($accountsData)]);
                 TempAccount::insert($accountsData);
             }
+            Log::info('Database transaction completed successfully');
         });
 
+        Log::debug('Cleaning up session data');
         session()->forget([
             "upload_data_{$this->uploadId}",
             "geo_list_for_upload_{$this->uploadId}",
             "upload_type_{$this->uploadId}",
         ]);
 
+        Log::info('Submit process completed', ['isInvite' => $this->isInvite]);
+        
         if ($this->isInvite) {
             return redirect()->route('filament.pages.upload-page-invite', ['id' => $this->uploadId])
                 ->with('success', 'Аккаунты успешно загружены!');

@@ -6,6 +6,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use ZipArchive;
+use Illuminate\Support\Facades\Log;
 
 class UploadImportWizard extends Page
 {
@@ -20,18 +21,23 @@ class UploadImportWizard extends Page
     public $isInvite = false;
     public function updated($propertyName)
     {
+        Log::info('Property updated', ['property' => $propertyName]);
+        
         // Для поддержки Livewire: убедимся, что это массивы
         if ($propertyName === 'validZipFiles' && !is_array($this->validZipFiles)) {
             $this->validZipFiles = [$this->validZipFiles];
+            Log::debug('Converted validZipFiles to array', ['files' => $this->validZipFiles]);
         }
         if ($propertyName === 'deadZipFiles' && !is_array($this->deadZipFiles)) {
             $this->deadZipFiles = [$this->deadZipFiles];
+            Log::debug('Converted deadZipFiles to array', ['files' => $this->deadZipFiles]);
         }
 
     }
 
     public function submit()
     {
+        Log::info('Starting import submission');
 
         $this->validate([
             'validZipFiles.*' => 'nullable|file|mimes:zip',
@@ -44,34 +50,48 @@ class UploadImportWizard extends Page
         $originalNames = [];
 
         if ($this->isInvite) {
+            Log::info('Processing invite mode');
             // Обработка живых аккаунтов
             if (!empty($this->validZipFiles)) {
+                Log::debug('Processing valid files for invite mode', ['count' => count($this->validZipFiles)]);
                 $this->processFiles($this->validZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'valid');
             }
         } else {
+            Log::info('Processing regular mode');
             // Обработка живых аккаунтов
             if (!empty($this->validZipFiles)) {
+                Log::debug('Processing valid files', ['count' => count($this->validZipFiles)]);
                 $this->processFiles($this->validZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'valid');
             }
 
             // Обработка мертвых аккаунтов
             if (!empty($this->deadZipFiles)) {
+                Log::debug('Processing dead files', ['count' => count($this->deadZipFiles)]);
                 $this->processFiles($this->deadZipFiles, $allNormalizedAccounts, $allGeoWithMissingPrices, $originalNames, 'dead');
             }
         }
 
         // Убираем дубликаты гео
         $allGeoWithMissingPrices = array_unique($allGeoWithMissingPrices);
+        Log::info('Unique geos with missing prices', ['geos' => $allGeoWithMissingPrices]);
 
         $upload = \App\Models\Upload::create([
             'type' => 'mixed', // теперь тип mixed, так как могут быть оба типа
             'meta' => ['original_name' => implode(', ', $originalNames)],
         ]);
 
+        Log::info('Created upload record', ['upload_id' => $upload->id]);
+
         session()->put("upload_data_{$upload->id}", $allNormalizedAccounts);
         session()->put("geo_list_for_upload_{$upload->id}", $allGeoWithMissingPrices);
         session()->put("upload_type_{$upload->id}", 'mixed');
         session()->put("is_invite_{$upload->id}", $this->isInvite);
+
+        Log::info('Import completed successfully', [
+            'upload_id' => $upload->id,
+            'accounts_count' => count($allNormalizedAccounts),
+            'geos_count' => count($allGeoWithMissingPrices)
+        ]);
 
         return redirect('/admin/upload-assign-geo-prices?uploadId=' . $upload->id);
     }
@@ -79,6 +99,10 @@ class UploadImportWizard extends Page
     private function processFiles($files, &$allNormalizedAccounts, &$allGeoWithMissingPrices, &$originalNames, $type)
     {
         foreach ($files as $zipFile) {
+            Log::info('Processing zip file', [
+                'original_name' => $zipFile->getClientOriginalName(),
+                'type' => $type
+            ]);
 
             $tempPath = $zipFile->getRealPath();
             $extractPath = storage_path('app/tmp/' . (string) Str::uuid());
@@ -86,14 +110,18 @@ class UploadImportWizard extends Page
 
             $zip = new \ZipArchive();
             if ($zip->open($tempPath) !== true) {
-
+                Log::error('Failed to open archive', ['path' => $tempPath]);
                 throw new \Exception("Не удалось открыть архив: " . $tempPath);
             }
 
             $zip->extractTo($extractPath);
             $zip->close();
 
+            Log::debug('Archive extracted successfully', ['path' => $extractPath]);
+
             $files = array_filter(scandir($extractPath), fn($f) => str_ends_with($f, '.json'));
+            Log::info('Found JSON files', ['count' => count($files)]);
+            
             $geoWithMissingPrices = [];
             $normalizedAccounts = [];
 
@@ -101,10 +129,12 @@ class UploadImportWizard extends Page
                 $jsonPath = $extractPath . '/' . $file;
                 $json = json_decode(file_get_contents($jsonPath), true);
 
+                Log::debug('Processing JSON file', ['file' => $file]);
                 
                 // Проверяем, является ли $json массивом с одним элементом
                 if (is_array($json) && count($json) === 1 && isset($json[0])) {
                     $json = $json[0];
+                    Log::debug('Unwrapped single-element JSON array');
                 }
                 
                 // Извлекаем данные из api_data если есть, иначе используем сам json
@@ -117,8 +147,14 @@ class UploadImportWizard extends Page
 
                 if (empty($price) && $geo) {
                     $geoWithMissingPrices[$geo] = true;
+                    Log::warning('Missing price for geo', ['geo' => $geo]);
                 }
 
+                Log::debug('Account data normalized', [
+                    'phone' => substr($phone, 0, 4) . '****', // Логируем только часть номера для безопасности
+                    'geo' => $geo,
+                    'role' => $role
+                ]);
 
                 $normalizedAccounts[] = [
                     'geo' => $geo,
@@ -137,6 +173,10 @@ class UploadImportWizard extends Page
             $originalNames[] = $zipFile->getClientOriginalName();
 
             Storage::disk('local')->delete($tempPath);
+            Log::info('Zip file processing completed', [
+                'accounts_processed' => count($normalizedAccounts),
+                'missing_prices_geos' => count($geoWithMissingPrices)
+            ]);
         }
     }
 
