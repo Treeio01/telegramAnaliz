@@ -107,14 +107,10 @@ class StatsResource extends Resource
                     ->label('Средняя цена инвайта')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        // Получаем ID продавца
                         $vendorId = $record->id;
-
-                        // Получаем фильтры гео
                         $geoFilters = request('tableFilters.geo.geo', []);
                         $hasGeoFilter = !empty($geoFilters);
 
-                        // Формируем условие для гео
                         $geoCondition = '';
                         $params = [$vendorId];
 
@@ -124,7 +120,6 @@ class StatsResource extends Resource
                             $params = array_merge($params, $geoFilters);
                         }
 
-                        // Выполняем прямой SQL-запрос с использованием NULLIF для предотвращения деления на ноль
                         $result = DB::select("
                             SELECT 
                                 CASE 
@@ -139,13 +134,34 @@ class StatsResource extends Resource
                                 $geoCondition
                         ", $params);
 
-                        if (empty($result)) {
-                            return 0;
-                        }
-
                         return round($result[0]->avg_price ?? 0, 2);
                     })
-                    ->sortable(),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        $geoFilters = request('tableFilters.geo.geo', []);
+                        $geoCondition = '';
+                        $params = [];
+
+                        if (!empty($geoFilters)) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = $geoFilters;
+                        }
+
+                        return $query
+                            ->orderByRaw("(
+                                SELECT 
+                                    CASE 
+                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                             (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                    END
+                                FROM 
+                                    accounts
+                                WHERE 
+                                    vendor_id = vendors.id
+                                    $geoCondition
+                            ) $direction", $params);
+                    }),
 
                 TextColumn::make('total_invites')
                     ->label('Сумма инвайтов')
