@@ -40,6 +40,9 @@ class InviteResource extends Resource
             ->query(function () use ($hasGeoFilter, $geoFilters) {
                 $query = Vendor::query();
 
+
+
+                
                 // Формируем selectRaw для нужных метрик
                 $geoCondition = $hasGeoFilter
                     ? 'accounts.geo IN ("' . implode('","', $geoFilters) . '")'
