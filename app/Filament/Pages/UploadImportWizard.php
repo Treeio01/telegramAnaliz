@@ -52,7 +52,11 @@ class UploadImportWizard extends Page
         if ($this->isInvite) {
             Log::info('Processing invite mode');
             // Обработка живых аккаунтов
-
+            \Log::info('Проблемный архив', [
+                'размер' => filesize($this->validZipFiles[0]),
+                'upload_max_filesize' => ini_get('upload_max_filesize'),
+                'post_max_size' => ini_get('post_max_size')
+            ]);
             Log::info('Processing valid files for invite mode', ['count' => count($this->validZipFiles)]);
             if (!empty($this->validZipFiles)) {
                 Log::debug('Processing valid files for invite mode', ['count' => count($this->validZipFiles)]);
@@ -182,6 +186,82 @@ class UploadImportWizard extends Page
                 'missing_prices_geos' => count($geoWithMissingPrices)
             ]);
         }
+    }
+
+    public function processZipFile($file)
+    {
+        try {
+            \Log::info('Начало обработки архива', [
+                'имя' => $file->getClientOriginalName(),
+                'размер' => $file->getSize(),
+                'mime' => $file->getMimeType()
+            ]);
+            
+            $zip = new \ZipArchive();
+            $result = $zip->open($file->getRealPath());
+            
+            if ($result !== true) {
+                \Log::error('Ошибка открытия архива', [
+                    'код_ошибки' => $result,
+                    'описание' => $this->getZipErrorMessage($result)
+                ]);
+                return false;
+            }
+            
+            \Log::info('Архив успешно открыт', [
+                'количество_файлов' => $zip->numFiles
+            ]);
+            
+            // Вывести список файлов в архиве
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                \Log::info('Файл в архиве', [
+                    'имя' => $stat['name'],
+                    'размер' => $stat['size']
+                ]);
+            }
+            
+            $zip->close();
+            return true;
+        } catch (\Exception $e) {
+            \Log::error('Исключение при обработке архива', [
+                'сообщение' => $e->getMessage(),
+                'файл' => $e->getFile(),
+                'строка' => $e->getLine()
+            ]);
+            return false;
+        }
+    }
+
+    private function getZipErrorMessage($code)
+    {
+        $messages = [
+            \ZipArchive::ER_MULTIDISK => 'Многотомные архивы не поддерживаются',
+            \ZipArchive::ER_RENAME => 'Ошибка переименования временного файла',
+            \ZipArchive::ER_CLOSE => 'Ошибка закрытия архива',
+            \ZipArchive::ER_SEEK => 'Ошибка поиска в архиве',
+            \ZipArchive::ER_READ => 'Ошибка чтения архива',
+            \ZipArchive::ER_WRITE => 'Ошибка записи в архив',
+            \ZipArchive::ER_CRC => 'Ошибка CRC',
+            \ZipArchive::ER_ZIPCLOSED => 'Архив был закрыт',
+            \ZipArchive::ER_NOENT => 'Файл не найден',
+            \ZipArchive::ER_EXISTS => 'Файл уже существует',
+            \ZipArchive::ER_OPEN => 'Не удалось открыть файл',
+            \ZipArchive::ER_TMPOPEN => 'Ошибка создания временного файла',
+            \ZipArchive::ER_ZLIB => 'Ошибка Zlib',
+            \ZipArchive::ER_MEMORY => 'Ошибка выделения памяти',
+            \ZipArchive::ER_CHANGED => 'Запись была изменена',
+            \ZipArchive::ER_COMPNOTSUPP => 'Метод сжатия не поддерживается',
+            \ZipArchive::ER_EOF => 'Неожиданный конец файла',
+            \ZipArchive::ER_INVAL => 'Недопустимый аргумент',
+            \ZipArchive::ER_NOZIP => 'Не ZIP-архив',
+            \ZipArchive::ER_INTERNAL => 'Внутренняя ошибка',
+            \ZipArchive::ER_INCONS => 'Несогласованный ZIP-архив',
+            \ZipArchive::ER_REMOVE => 'Не удалось удалить файл',
+            \ZipArchive::ER_DELETED => 'Запись была удалена'
+        ];
+        
+        return isset($messages[$code]) ? $messages[$code] : "Неизвестная ошибка ($code)";
     }
 
     protected static string $view = 'filament.pages.upload-import-wizard';
