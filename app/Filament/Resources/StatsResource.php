@@ -94,7 +94,14 @@ class StatsResource extends Resource
                         $soldPrice = request('tableFilters.sold_price.sold_price', 0);
                         return $record->valid_accounts_count * $soldPrice;
                     })
-                    ->sortable(),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        $soldPrice = request('tableFilters.sold_price.sold_price', 0);
+                        return $query
+                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
+                                $q->where('type', 'valid');
+                            }])
+                            ->orderByRaw("valid_accounts_count * ? {$direction}", [$soldPrice]);
+                    }),
 
                 TextColumn::make('avg_invite_price')
                     ->label('Средняя цена инвайта')
