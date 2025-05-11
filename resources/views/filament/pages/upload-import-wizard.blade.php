@@ -4,7 +4,7 @@
             Загрузка архивов
         </x-slot>
 
-        <form wire:submit.prevent="submit" class="space-y-6">
+        <form wire:submit.prevent="submit" enctype="multipart/form-data" class="space-y-6">
             <div>
                 <label class="block font-semibold text-black dark:text-white mb-2">Живые аккаунты (.zip)</label>
                 <input type="file" multiple wire:model="validZipFiles" class="file-input file-input-bordered w-full bg-gray-800 rounded-md text-black dark:text-white mb-4" />
