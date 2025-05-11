@@ -91,11 +91,11 @@ class StatsResource extends Resource
                     ->label('Заработано')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        $soldPrice = request('tableFilters.sold_price.sold_price', 0);
+                        $soldPrice = session('tableFilters.stats.sold_price.sold_price', 0);
                         return $record->valid_accounts_count * $soldPrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = request('tableFilters.sold_price.sold_price', 0);
+                        $soldPrice = session('tableFilters.stats.sold_price.sold_price', 0);
                         return $query
                             ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
                                 $q->where('type', 'valid');
@@ -160,7 +160,7 @@ class StatsResource extends Resource
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
                         $spent = $record->accounts()->sum('price');
-                        $soldPrice = request('tableFilters.sold_price.sold_price', 0);
+                        $soldPrice = session('tableFilters.stats.sold_price.sold_price', 0);
                         $earned = $record->valid_accounts_count * $soldPrice;
                         return $earned - $spent;
                     })
@@ -227,11 +227,12 @@ class StatsResource extends Resource
                         TextInput::make('sold_price')
                             ->label('Цена продажи')
                             ->numeric()
-                            ->default(0)
                             ->live()
                     ])
                     ->query(function (Builder $query, array $data) {
-                        // Не фильтруем, просто сохраняем значение для расчетов
+                        if (isset($data['sold_price'])) {
+                            session(['tableFilters.stats.sold_price.sold_price' => $data['sold_price']]);
+                        }
                         return $query;
                     }),
             ])
