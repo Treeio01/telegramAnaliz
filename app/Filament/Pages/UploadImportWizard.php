@@ -53,7 +53,6 @@ class UploadImportWizard extends Page
             Log::info('Processing invite mode');
             // Обработка живых аккаунтов
             \Log::info('Проблемный архив', [
-                'размер' => filesize($this->validZipFiles[0]),
                 'upload_max_filesize' => ini_get('upload_max_filesize'),
                 'post_max_size' => ini_get('post_max_size')
             ]);
