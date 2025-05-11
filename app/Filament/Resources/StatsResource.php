@@ -81,7 +81,11 @@ class StatsResource extends Resource
                     ->state(function (Vendor $record) {
                         return $record->accounts()->sum('price');
                     })
-                    ->sortable(),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query
+                            ->withSum('accounts', 'price')
+                            ->orderBy('accounts_sum_price', $direction);
+                    }),
 
                 TextColumn::make('total_earned')
                     ->label('Заработано')
