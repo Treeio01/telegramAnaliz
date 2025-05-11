@@ -40,8 +40,8 @@ class UploadImportWizard extends Page
         Log::info('Starting import submission');
 
         $this->validate([
-            'validZipFiles.*' => 'nullable|file|mimes:zip',
-            'deadZipFiles.*' => 'nullable|file|mimes:zip',
+            'validZipFiles.*' => 'file|mimes:zip|max:204800',
+            'deadZipFiles.*' => 'file|mimes:zip|max:204800',
             'isInvite' => 'required|boolean',
         ]);
 
@@ -265,4 +265,26 @@ class UploadImportWizard extends Page
     }
 
     protected static string $view = 'filament.pages.upload-import-wizard';
+
+    protected function getFormSchema(): array
+    {
+        return [
+            // ... ваши поля формы
+        ];
+    }
+
+    protected function rules()
+    {
+        return [
+            'validZipFiles.*' => 'file|mimes:zip|max:204800',
+            'deadZipFiles.*' => 'file|mimes:zip|max:204800',
+            'isInvite' => 'required|boolean',
+        ];
+    }
+
+    protected $rules = [
+        'validZipFiles.*' => 'file|mimes:zip|max:204800',
+        'deadZipFiles.*' => 'file|mimes:zip|max:204800',
+        'isInvite' => 'required|boolean',
+    ];
 }
