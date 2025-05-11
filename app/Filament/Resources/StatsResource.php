@@ -168,7 +168,11 @@ class StatsResource extends Resource
                     ->state(function (Vendor $record) {
                         return $record->accounts()->sum('stats_invites_count');
                     })
-                    ->sortable(),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query
+                            ->withSum('accounts', 'stats_invites_count')
+                            ->orderBy('accounts_sum_stats_invites_count', $direction);
+                    }),
 
                 TextColumn::make('total_profit')
                     ->label('Итог')
