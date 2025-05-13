@@ -290,9 +290,9 @@ class StatsResource extends Resource
                         
                         // Формула: потрачено - (акки * среднее кол-во инвайта * цена инвайта из фильтра)
                         $spent = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
-                        $earned = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
+                        $invitesCost = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
                         
-                        return $spent - $earned;
+                        return $spent - $invitesCost;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
@@ -368,9 +368,9 @@ class StatsResource extends Resource
                         $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
                         
                         $spent = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
-                        $earned = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
+                        $invitesCost = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
                         
-                        return $spent - $earned;
+                        return $spent - $invitesCost;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
