@@ -251,7 +251,7 @@ class StatsResource extends Resource
                     }),
 
                 TextColumn::make('invites_earned')
-                    ->label('Разница')
+                    ->label('Заработано')
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
@@ -260,40 +260,10 @@ class StatsResource extends Resource
                             ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
                             : 0;
                         
-                        $vendorId = $record->id;
-                        $geoFilters = request('tableFilters.geo.geo', []);
-                        $hasGeoFilter = !empty($geoFilters);
-
-                        $geoCondition = '';
-                        $params = [$vendorId];
-
-                        if ($hasGeoFilter) {
-                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND geo IN ($placeholders)";
-                            $params = array_merge($params, $geoFilters);
-                        }
-
-                        $result = DB::select("
-                            SELECT 
-                                CASE 
-                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
-                                        (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
-                                END as avg_price
-                            FROM 
-                                accounts
-                            WHERE 
-                                vendor_id = ?
-                                $geoCondition
-                        ", $params);
-
-                        $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
+                        // Формула: акки * среднее кол-во инвайта * цена инвайта из фильтра
+                        $earned = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
                         
-                        // Формула: потрачено - (акки * среднее кол-во инвайта * цена инвайта из фильтра)
-                        $spent = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
-                        $invitesCost = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
-                        
-                        return $spent - $invitesCost;
+                        return $earned;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
@@ -301,30 +271,10 @@ class StatsResource extends Resource
                             ->withCount('accounts')
                             ->withSum('accounts', 'stats_invites_count')
                             ->orderByRaw("(
-                                SELECT 
-                                    CASE 
-                                        WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 OR CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) = 0 THEN 0
-                                        ELSE (
-                                            CAST(accounts_count AS DECIMAL(10,2)) * 
-                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
-                                            (
-                                                SELECT 
-                                                    CASE 
-                                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
-                                                            (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
-                                                    END
-                                                FROM 
-                                                    accounts
-                                                WHERE 
-                                                    vendor_id = vendors.id
-                                            )
-                                        ) - (
-                                            CAST(accounts_count AS DECIMAL(10,2)) * 
-                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
-                                            CAST(? AS DECIMAL(10,2))
-                                        )
-                                    END
+                                CAST(accounts_count AS DECIMAL(10,2)) * 
+                                CASE WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 THEN 0 
+                                ELSE (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) 
+                                END * CAST(? AS DECIMAL(10,2))
                             ) {$direction}", [$soldPrice]);
                     }),
 
@@ -333,7 +283,6 @@ class StatsResource extends Resource
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
-                        // Используем те же формулы, что и для invites_earned
                         $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
                         $avgInvitesCount = $record->accounts_count > 0 
                             ? (float)$record->accounts()->sum('stats_invites_count') / (float)$record->accounts_count
@@ -368,10 +317,14 @@ class StatsResource extends Resource
 
                         $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
                         
+                        // Потрачено: акки * среднее кол-во инвайта * средняя цена инвайта
                         $spent = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
-                        $invitesCost = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
                         
-                        return $spent - $invitesCost;
+                        // Заработано: акки * среднее кол-во инвайта * цена инвайта из фильтра
+                        $earned = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
+                        
+                        // Прибыль: заработано - потрачено
+                        return $earned - $spent;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
@@ -379,30 +332,28 @@ class StatsResource extends Resource
                             ->withCount('accounts')
                             ->withSum('accounts', 'stats_invites_count')
                             ->orderByRaw("(
-                                SELECT 
-                                    CASE 
-                                        WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 OR CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) = 0 THEN 0
-                                        ELSE (
-                                            CAST(accounts_count AS DECIMAL(10,2)) * 
-                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
-                                            (
-                                                SELECT 
-                                                    CASE 
-                                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
-                                                            (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
-                                                    END
-                                                FROM 
-                                                    accounts
-                                                WHERE 
-                                                    vendor_id = vendors.id
-                                            )
-                                        ) - (
-                                            CAST(accounts_count AS DECIMAL(10,2)) * 
-                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
-                                            CAST(? AS DECIMAL(10,2))
-                                        )
-                                    END
+                                (
+                                    CAST(accounts_count AS DECIMAL(10,2)) * 
+                                    CASE WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 THEN 0 
+                                    ELSE (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) 
+                                    END * CAST(? AS DECIMAL(10,2))
+                                ) - (
+                                    CAST(accounts_count AS DECIMAL(10,2)) * 
+                                    CASE WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 THEN 0 
+                                    ELSE (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) 
+                                    END * (
+                                        SELECT 
+                                            CASE 
+                                                WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                                ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                                    (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                            END
+                                        FROM 
+                                            accounts
+                                        WHERE 
+                                            vendor_id = vendors.id
+                                    )
+                                )
                             ) {$direction}", [$soldPrice]);
                     }),
             ])
