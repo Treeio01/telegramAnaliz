@@ -59,20 +59,30 @@ class StatsResource extends Resource
                     ->color(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 'gray';
-                        $valid = $record->valid_accounts_count ?? 0;
-                        $percent = round(($valid / $total) * 100, 2);
+                        
+                        // Получаем количество аккаунтов с инвайтами
+                        $accountsWithInvites = $record->accounts()->where('stats_invites_count', '>', 0)->count();
+                        $percent = $total > 0 ? round(($accountsWithInvites / $total) * 100, 2) : 0;
+                        
                         return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
                     })
                     ->state(function (Vendor $record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 0;
-                        $valid = $record->valid_accounts_count ?? 0;
-                        return round(($valid / $total) * 100, 2);
+                        
+                        // Получаем количество аккаунтов с инвайтами
+                        $accountsWithInvites = $record->accounts()->where('stats_invites_count', '>', 0)->count();
+                        return round(($accountsWithInvites / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
-                        );
+                        return $query
+                            ->withCount(['accounts'])
+                            ->withCount(['accounts as accounts_with_invites_count' => function (Builder $q) {
+                                $q->where('stats_invites_count', '>', 0);
+                            }])
+                            ->orderByRaw(
+                                "CASE WHEN accounts_count = 0 THEN 0 ELSE (accounts_with_invites_count * 100.0 / accounts_count) END $direction"
+                            );
                     }),
 
                 TextColumn::make('accounts_count')
