@@ -313,40 +313,112 @@ class StatsResource extends Resource
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
-                        $soldPrice = (float)session('tableFilters.stats.sold_price.survival_sold_price', 0);
+                        // Для блока выживаемости
+                        $survivalSoldPrice = (float)session('tableFilters.stats.sold_price.survival_sold_price', 0);
                         $totalAccounts = $record->accounts_count ?? 0;
                         
-                        // Для потрачено
+                        // Потрачено для выживаемости
                         $totalPrice = $record->accounts()->sum('price');
                         $avgPrice = $totalAccounts > 0 ? ($totalPrice / $totalAccounts) : 0;
-                        $spent = (float)$totalAccounts * (float)$avgPrice;
+                        $survivalSpent = (float)$totalAccounts * (float)$avgPrice;
                         
-                        // Для заработано
+                        // Заработано для выживаемости
                         $survivalPercent = 0;
                         if ($totalAccounts > 0) {
                             $validAccounts = $record->valid_accounts_count ?? 0;
                             $survivalPercent = $validAccounts / $totalAccounts;
                         }
-                        $earned = (float)$totalAccounts * (float)$survivalPercent * (float)$soldPrice;
+                        $survivalEarned = (float)$totalAccounts * (float)$survivalPercent * (float)$survivalSoldPrice;
                         
-                        // Итог: заработано - потрачено
-                        return $earned - $spent;
+                        // Для блока инвайтов
+                        $inviteSoldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                        $avgInvitesCount = $record->accounts_count > 0 
+                            ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
+                            : 0;
+                        
+                        // Получаем среднюю цену инвайта
+                        $vendorId = $record->id;
+                        $geoFilters = request('tableFilters.geo.geo', []);
+                        $hasGeoFilter = !empty($geoFilters);
+
+                        $geoCondition = '';
+                        $params = [$vendorId];
+
+                        if ($hasGeoFilter) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = array_merge($params, $geoFilters);
+                        }
+
+                        $result = DB::select("
+                            SELECT 
+                                CASE 
+                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                        (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                END as avg_price
+                            FROM 
+                                accounts
+                            WHERE 
+                                vendor_id = ?
+                                $geoCondition
+                        ", $params);
+
+                        $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
+                        
+                        // Потрачено для инвайтов
+                        $inviteSpent = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
+                        
+                        // Заработано для инвайтов
+                        $inviteEarned = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$inviteSoldPrice;
+                        
+                        // Общий итог: (заработано выживаемость + заработано инвайты) - (потрачено выживаемость + потрачено инвайты)
+                        $totalEarned = $survivalEarned + $inviteEarned;
+                        $totalSpent = $survivalSpent + $inviteSpent;
+                        
+                        return $totalEarned - $totalSpent;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = (float)session('tableFilters.stats.sold_price.survival_sold_price', 0);
+                        $survivalSoldPrice = (float)session('tableFilters.stats.sold_price.survival_sold_price', 0);
+                        $inviteSoldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                        
                         return $query
                             ->withCount('accounts')
                             ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
                                 $q->where('type', 'valid');
                             }])
                             ->withSum('accounts', 'price')
+                            ->withSum('accounts', 'stats_invites_count')
                             ->orderByRaw("(
-                                CASE WHEN accounts_count = 0 THEN 0 
-                                ELSE accounts_count * (valid_accounts_count / accounts_count) * ? END
-                                - 
-                                CASE WHEN accounts_count = 0 THEN 0 
-                                ELSE accounts_count * (accounts_sum_price / accounts_count) END
-                            ) {$direction}", [$soldPrice]);
+                                /* Заработано выживаемость */
+                                (CASE WHEN accounts_count = 0 THEN 0 ELSE accounts_count * (valid_accounts_count / accounts_count) * ? END)
+                                +
+                                /* Заработано инвайты */
+                                (CAST(accounts_count AS DECIMAL(10,2)) * 
+                                CASE WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 THEN 0 
+                                ELSE (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) 
+                                END * CAST(? AS DECIMAL(10,2)))
+                                -
+                                /* Потрачено выживаемость */
+                                (CASE WHEN accounts_count = 0 THEN 0 ELSE accounts_count * (accounts_sum_price / accounts_count) END)
+                                -
+                                /* Потрачено инвайты */
+                                (CAST(accounts_count AS DECIMAL(10,2)) * 
+                                CASE WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 THEN 0 
+                                ELSE (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) 
+                                END * (
+                                    SELECT 
+                                        CASE 
+                                            WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                            ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                                (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                        END
+                                    FROM 
+                                        accounts
+                                    WHERE 
+                                        vendor_id = vendors.id
+                                ))
+                            ) {$direction}", [$survivalSoldPrice, $inviteSoldPrice]);
                     }),
             ])
             ->filters([
