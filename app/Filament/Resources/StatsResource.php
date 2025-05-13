@@ -189,12 +189,65 @@ class StatsResource extends Resource
                     ->label('Потрачено')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        return $record->accounts()->sum('price');
+                        $avgInvitesCount = $record->accounts_count > 0 
+                            ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
+                            : 0;
+                        
+                        // Получаем среднюю цену инвайта из колонки avg_invite_price
+                        $vendorId = $record->id;
+                        $geoFilters = request('tableFilters.geo.geo', []);
+                        $hasGeoFilter = !empty($geoFilters);
+
+                        $geoCondition = '';
+                        $params = [$vendorId];
+
+                        if ($hasGeoFilter) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = array_merge($params, $geoFilters);
+                        }
+
+                        $result = DB::select("
+                            SELECT 
+                                CASE 
+                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                         (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                END as avg_price
+                            FROM 
+                                accounts
+                            WHERE 
+                                vendor_id = ?
+                                $geoCondition
+                        ", $params);
+
+                        $avgInvitePrice = round($result[0]->avg_price ?? 0, 2);
+                        
+                        // Формула: акки * среднее кол-во инвайта * средняя цена инвайта
+                        return $record->accounts_count * $avgInvitesCount * $avgInvitePrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query
-                            ->withSum('accounts', 'price')
-                            ->orderBy('accounts_sum_price', $direction);
+                            ->withCount('accounts')
+                            ->withSum('accounts', 'stats_invites_count')
+                            ->orderByRaw("(
+                                SELECT 
+                                    CASE 
+                                        WHEN accounts_count = 0 OR accounts_sum_stats_invites_count = 0 THEN 0
+                                        ELSE accounts_count * (accounts_sum_stats_invites_count / accounts_count) * (
+                                            SELECT 
+                                                CASE 
+                                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                                        (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                                END
+                                            FROM 
+                                                accounts
+                                            WHERE 
+                                                vendor_id = vendors.id
+                                        )
+                                    END
+                            ) {$direction}");
                     }),
 
                 TextColumn::make('invites_earned')
@@ -205,7 +258,41 @@ class StatsResource extends Resource
                         $avgInvitesCount = $record->accounts_count > 0 
                             ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
                             : 0;
-                        return $record->accounts_count * $avgInvitesCount * $soldPrice;
+                        
+                        $vendorId = $record->id;
+                        $geoFilters = request('tableFilters.geo.geo', []);
+                        $hasGeoFilter = !empty($geoFilters);
+
+                        $geoCondition = '';
+                        $params = [$vendorId];
+
+                        if ($hasGeoFilter) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = array_merge($params, $geoFilters);
+                        }
+
+                        $result = DB::select("
+                            SELECT 
+                                CASE 
+                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                        (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                END as avg_price
+                            FROM 
+                                accounts
+                            WHERE 
+                                vendor_id = ?
+                                $geoCondition
+                        ", $params);
+
+                        $avgInvitePrice = round($result[0]->avg_price ?? 0, 2);
+                        
+                        // Формула: потрачено - (акки * среднее кол-во инвайта * цена инвайта из фильтра)
+                        $spent = $record->accounts_count * $avgInvitesCount * $avgInvitePrice;
+                        $earned = $record->accounts_count * $avgInvitesCount * $soldPrice;
+                        
+                        return $spent - $earned;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         $soldPrice = session('tableFilters.stats.sold_price.invite_sold_price', 0);
@@ -213,10 +300,26 @@ class StatsResource extends Resource
                             ->withCount('accounts')
                             ->withSum('accounts', 'stats_invites_count')
                             ->orderByRaw("(
-                                CASE 
-                                    WHEN accounts_count = 0 THEN 0 
-                                    ELSE accounts_count * (accounts_sum_stats_invites_count / accounts_count) * ?
-                                END
+                                SELECT 
+                                    CASE 
+                                        WHEN accounts_count = 0 OR accounts_sum_stats_invites_count = 0 THEN 0
+                                        ELSE (
+                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * (
+                                                SELECT 
+                                                    CASE 
+                                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                                            (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                                    END
+                                                FROM 
+                                                    accounts
+                                                WHERE 
+                                                    vendor_id = vendors.id
+                                            )
+                                        ) - (
+                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * ?
+                                        )
+                                    END
                             ) {$direction}", [$soldPrice]);
                     }),
 
@@ -225,21 +328,73 @@ class StatsResource extends Resource
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
-                        $spent = $record->accounts()->sum('price');
-                        $soldPrice = session('tableFilters.stats.sold_price.survival_sold_price', 0);
-                        $earned = $record->valid_accounts_count * $soldPrice;
+                        // Используем те же формулы, что и для invites_earned
+                        $soldPrice = session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                        $avgInvitesCount = $record->accounts_count > 0 
+                            ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
+                            : 0;
+                        
+                        $vendorId = $record->id;
+                        $geoFilters = request('tableFilters.geo.geo', []);
+                        $hasGeoFilter = !empty($geoFilters);
+
+                        $geoCondition = '';
+                        $params = [$vendorId];
+
+                        if ($hasGeoFilter) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = array_merge($params, $geoFilters);
+                        }
+
+                        $result = DB::select("
+                            SELECT 
+                                CASE 
+                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                        (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                END as avg_price
+                            FROM 
+                                accounts
+                            WHERE 
+                                vendor_id = ?
+                                $geoCondition
+                        ", $params);
+
+                        $avgInvitePrice = round($result[0]->avg_price ?? 0, 2);
+                        
+                        $spent = $record->accounts_count * $avgInvitesCount * $avgInvitePrice;
+                        $earned = $record->accounts_count * $avgInvitesCount * $soldPrice;
+                        
                         return $earned - $spent;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = session('tableFilters.stats.sold_price.survival_sold_price', 0);
+                        $soldPrice = session('tableFilters.stats.sold_price.invite_sold_price', 0);
                         return $query
-                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
-                                $q->where('type', 'valid');
-                            }])
-                            ->withSum('accounts', 'price')
-                            ->orderByRaw("(valid_accounts_count * ? - COALESCE(accounts_sum_price, 0)) {$direction}", 
-                                [$soldPrice]
-                            );
+                            ->withCount('accounts')
+                            ->withSum('accounts', 'stats_invites_count')
+                            ->orderByRaw("(
+                                SELECT 
+                                    CASE 
+                                        WHEN accounts_count = 0 OR accounts_sum_stats_invites_count = 0 THEN 0
+                                        ELSE (
+                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * ? 
+                                        ) - (
+                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * (
+                                                SELECT 
+                                                    CASE 
+                                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                                            (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                                    END
+                                                FROM 
+                                                    accounts
+                                                WHERE 
+                                                    vendor_id = vendors.id
+                                            )
+                                        )
+                                    END
+                            ) {$direction}", [$soldPrice]);
                     }),
             ])
             ->filters([
