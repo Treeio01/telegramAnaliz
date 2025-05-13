@@ -21,7 +21,7 @@ use Filament\Forms\Components\DatePicker;
 use Illuminate\Support\Facades\DB;
 use App\Models\Vendor;
 
-class InviteResource extends Resource
+class StatsResource extends Resource
 {
     protected static ?string $model = Vendor::class;
 
