@@ -251,8 +251,9 @@ class StatsResource extends Resource
                     }),
 
                 TextColumn::make('invites_earned')
-                    ->label('Заработано')
+                    ->label('Разница')
                     ->money('RUB')
+                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
                         $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
                         $avgInvitesCount = $record->accounts_count > 0 
