@@ -69,7 +69,11 @@ class StatsResource extends Resource
                         $valid = $record->valid_accounts_count ?? 0;
                         return round(($valid / $total) * 100, 2);
                     })
-                    ->sortable(),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw(
+                            "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
+                        );
+                    }),
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
