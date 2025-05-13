@@ -97,7 +97,7 @@ class UploadPageInvite extends Page implements HasTable
                     ->url(function (TempVendor $record) {
                         $vendor = \App\Models\Vendor::where('name', $record->name)->first();
                         if ($vendor) {
-                            return route('vendor.profile', $vendor->name);
+                            return route('vendor.profile', $vendor->id);
                         }
                         return null;
                     }),
