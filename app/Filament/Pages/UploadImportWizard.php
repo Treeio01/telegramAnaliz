@@ -147,7 +147,7 @@ class UploadImportWizard extends Page
                 
                 // Извлекаем данные из api_data если есть, иначе используем сам json
                 $data = isset($json['api_data']) ? $json['api_data'] : $json;
-                $phone = $data['phone'] ?? null;
+                $phone = $data['number'] ?? null;
 
                 $geo = \App\Services\GeoDetectorService::getGeoFromPhone($phone);
                 $price = $data['price'] ?? null;
