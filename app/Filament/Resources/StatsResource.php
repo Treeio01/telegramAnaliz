@@ -190,7 +190,7 @@ class StatsResource extends Resource
                     ->money('RUB')
                     ->state(function (Vendor $record) {
                         $avgInvitesCount = $record->accounts_count > 0 
-                            ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
+                            ? (float)$record->accounts()->sum('stats_invites_count') / (float)$record->accounts_count
                             : 0;
                         
                         // Получаем среднюю цену инвайта из колонки avg_invite_price
@@ -212,7 +212,7 @@ class StatsResource extends Resource
                                 CASE 
                                     WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
                                     ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
-                                         (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                        (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
                                 END as avg_price
                             FROM 
                                 accounts
@@ -221,10 +221,10 @@ class StatsResource extends Resource
                                 $geoCondition
                         ", $params);
 
-                        $avgInvitePrice = round($result[0]->avg_price ?? 0, 2);
+                        $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
                         
                         // Формула: акки * среднее кол-во инвайта * средняя цена инвайта
-                        return $record->accounts_count * $avgInvitesCount * $avgInvitePrice;
+                        return (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query
@@ -254,7 +254,7 @@ class StatsResource extends Resource
                     ->label('Заработано')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        $soldPrice = session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                        $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
                         $avgInvitesCount = $record->accounts_count > 0 
                             ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
                             : 0;
@@ -286,25 +286,31 @@ class StatsResource extends Resource
                                 $geoCondition
                         ", $params);
 
-                        $avgInvitePrice = round($result[0]->avg_price ?? 0, 2);
+                        $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
                         
                         // Формула: потрачено - (акки * среднее кол-во инвайта * цена инвайта из фильтра)
-                        $spent = $record->accounts_count * $avgInvitesCount * $avgInvitePrice;
-                        $earned = $record->accounts_count * $avgInvitesCount * $soldPrice;
+                        $spent = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
+                        $earned = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
                         
-                        return $spent - $earned;
+                        return $earned - $spent;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                        $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
                         return $query
                             ->withCount('accounts')
                             ->withSum('accounts', 'stats_invites_count')
                             ->orderByRaw("(
                                 SELECT 
                                     CASE 
-                                        WHEN accounts_count = 0 OR accounts_sum_stats_invites_count = 0 THEN 0
+                                        WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 OR CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) = 0 THEN 0
                                         ELSE (
-                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * (
+                                            CAST(accounts_count AS DECIMAL(10,2)) * 
+                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
+                                            CAST(? AS DECIMAL(10,2))
+                                        ) - (
+                                            CAST(accounts_count AS DECIMAL(10,2)) * 
+                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
+                                            (
                                                 SELECT 
                                                     CASE 
                                                         WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
@@ -316,8 +322,6 @@ class StatsResource extends Resource
                                                 WHERE 
                                                     vendor_id = vendors.id
                                             )
-                                        ) - (
-                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * ?
                                         )
                                     END
                             ) {$direction}", [$soldPrice]);
@@ -329,9 +333,9 @@ class StatsResource extends Resource
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
                         // Используем те же формулы, что и для invites_earned
-                        $soldPrice = session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                        $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
                         $avgInvitesCount = $record->accounts_count > 0 
-                            ? $record->accounts()->sum('stats_invites_count') / $record->accounts_count
+                            ? (float)$record->accounts()->sum('stats_invites_count') / (float)$record->accounts_count
                             : 0;
                         
                         $vendorId = $record->id;
@@ -361,26 +365,30 @@ class StatsResource extends Resource
                                 $geoCondition
                         ", $params);
 
-                        $avgInvitePrice = round($result[0]->avg_price ?? 0, 2);
+                        $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
                         
-                        $spent = $record->accounts_count * $avgInvitesCount * $avgInvitePrice;
-                        $earned = $record->accounts_count * $avgInvitesCount * $soldPrice;
+                        $spent = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$avgInvitePrice;
+                        $earned = (float)$record->accounts_count * (float)$avgInvitesCount * (float)$soldPrice;
                         
                         return $earned - $spent;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                        $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
                         return $query
                             ->withCount('accounts')
                             ->withSum('accounts', 'stats_invites_count')
                             ->orderByRaw("(
                                 SELECT 
                                     CASE 
-                                        WHEN accounts_count = 0 OR accounts_sum_stats_invites_count = 0 THEN 0
+                                        WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 OR CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) = 0 THEN 0
                                         ELSE (
-                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * ? 
+                                            CAST(accounts_count AS DECIMAL(10,2)) * 
+                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
+                                            CAST(? AS DECIMAL(10,2))
                                         ) - (
-                                            accounts_count * (accounts_sum_stats_invites_count / accounts_count) * (
+                                            CAST(accounts_count AS DECIMAL(10,2)) * 
+                                            (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) * 
+                                            (
                                                 SELECT 
                                                     CASE 
                                                         WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
