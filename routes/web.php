@@ -14,3 +14,5 @@ Route::get('/upload/{id}/page-invite', \App\Filament\Pages\UploadPageInvite::cla
 Route::get('/temp-vendor/{id}/profile', App\Filament\Pages\TempVendorProfile::class)
     ->name('temp-vendor.profile')
     ->middleware(['auth']);
+
+Route::get('/admin/invite-vendor/{vendorId}/profile', \App\Filament\Pages\InviteVendorProfile::class)->name('invite.vendor.profile');

@@ -17,6 +17,8 @@ use App\Models\Vendor;
 use App\Models\Account;
 use App\Models\TempAccount;
 use App\Models\GeoPreset;
+use App\Models\InviteVendor;
+use App\Models\InviteAccount;
 
 class UploadPageInvite extends Page implements HasTable
 {
@@ -346,15 +348,15 @@ class UploadPageInvite extends Page implements HasTable
                     ->get();
 
                 foreach ($tempVendors as $tempVendor) {
-                    // Создаем или находим основного вендора
-                    $vendor = Vendor::firstOrCreate([
+                    // Создаем или находим продавца инвайтов
+                    $inviteVendor = InviteVendor::firstOrCreate([
                         'name' => $tempVendor->name
                     ]);
 
-                    // Переносим аккаунты
+                    // Переносим аккаунты инвайтов
                     foreach ($tempVendor->tempAccounts as $tempAccount) {
-                        Account::create([
-                            'vendor_id' => $vendor->id,
+                        InviteAccount::create([
+                            'invite_vendor_id' => $inviteVendor->id,
                             'upload_id' => $this->uploadId,
                             'phone' => $tempAccount->phone ?? "0",
                             'geo' => $tempAccount->geo ?? "0",

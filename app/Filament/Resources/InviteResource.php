@@ -20,10 +20,12 @@ use App\Models\GeoPreset;
 use Filament\Forms\Components\DatePicker;
 use Illuminate\Support\Facades\DB;
 use App\Models\Vendor;
+use App\Models\InviteAccount;
+use App\Models\InviteVendor;
 
 class InviteResource extends Resource
 {
-    protected static ?string $model = Vendor::class;
+    protected static ?string $model = InviteVendor::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
     protected static ?string $navigationLabel = 'Инвайты';
@@ -38,38 +40,35 @@ class InviteResource extends Resource
 
         return $table
             ->query(function () use ($hasGeoFilter, $geoFilters) {
-                $query = Vendor::query();
-
-
-
+                $query = InviteVendor::query();
                 
                 // Формируем selectRaw для нужных метрик
                 $geoCondition = $hasGeoFilter
-                    ? 'accounts.geo IN ("' . implode('","', $geoFilters) . '")'
+                    ? 'invite_accounts.geo IN ("' . implode('","', $geoFilters) . '")'
                     : '1=1';
 
                 $query->selectRaw("
-                    vendors.*,
-                    COUNT(accounts.id) as total_accounts,
-                    AVG(CASE WHEN $geoCondition THEN accounts.stats_invites_count ELSE NULL END) as avg_invites,
-                    SUM(CASE WHEN $geoCondition AND accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) as worked_accounts,
-                    SUM(CASE WHEN $geoCondition AND (accounts.stats_invites_count = 0 OR accounts.stats_invites_count IS NULL) THEN 1 ELSE 0 END) as zero_accounts,
-                    CASE WHEN COUNT(accounts.id) = 0 THEN 0 ELSE
-                        (SUM(CASE WHEN $geoCondition AND accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(accounts.id))
+                    invite_vendors.*,
+                    COUNT(invite_accounts.id) as total_accounts,
+                    AVG(CASE WHEN $geoCondition THEN invite_accounts.stats_invites_count ELSE NULL END) as avg_invites,
+                    SUM(CASE WHEN $geoCondition AND invite_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) as worked_accounts,
+                    SUM(CASE WHEN $geoCondition AND (invite_accounts.stats_invites_count = 0 OR invite_accounts.stats_invites_count IS NULL) THEN 1 ELSE 0 END) as zero_accounts,
+                    CASE WHEN COUNT(invite_accounts.id) = 0 THEN 0 ELSE
+                        (SUM(CASE WHEN $geoCondition AND invite_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(invite_accounts.id))
                     END as percent_worked,
                     
                     /* Суммы для расчета средней цены */
-                    SUM(CASE WHEN $geoCondition THEN accounts.price ELSE 0 END) as total_price,
-                    SUM(CASE WHEN $geoCondition THEN accounts.stats_invites_count ELSE 0 END) as total_invites,
+                    SUM(CASE WHEN $geoCondition THEN invite_accounts.price ELSE 0 END) as total_price,
+                    SUM(CASE WHEN $geoCondition THEN invite_accounts.stats_invites_count ELSE 0 END) as total_invites,
                     CASE 
-                        WHEN COUNT(accounts.id) > 0 
-                        THEN CAST(SUM(accounts.price) AS DECIMAL(10,2)) / 
-                             (CAST(AVG(accounts.stats_invites_count) AS DECIMAL(10,2)) * COUNT(accounts.id))
+                        WHEN COUNT(invite_accounts.id) > 0 
+                        THEN CAST(SUM(invite_accounts.price) AS DECIMAL(10,2)) / 
+                             (CAST(AVG(invite_accounts.stats_invites_count) AS DECIMAL(10,2)) * COUNT(invite_accounts.id))
                         ELSE 0
                     END as avg_price_per_invite
                 ")
-                ->leftJoin('accounts', 'vendors.id', '=', 'accounts.vendor_id')
-                ->groupBy('vendors.id');
+                ->leftJoin('invite_accounts', 'invite_vendors.id', '=', 'invite_accounts.invite_vendor_id')
+                ->groupBy('invite_vendors.id');
 
                 return $query;
             })
@@ -78,42 +77,42 @@ class InviteResource extends Resource
                     ->label('')
                     ->state('📋')  // Эмодзи буфера обмена
                     ->copyable()
-                    ->copyableState(fn(Vendor $record): string => $record->name)
+                    ->copyableState(fn(InviteVendor $record): string => $record->name)
                     ->copyMessage('Скопировано')
                     ->copyMessageDuration(2000),
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
                     ->sortable()
-                    ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
+                    ->url(fn(InviteVendor $record): string => route('invite.vendor.profile', $record->id)),
                 TextColumn::make('total_accounts')
                     ->label('Кол-во аккаунтов')
-                    ->state(fn(Vendor $record) => $record->total_accounts ?? 0)
+                    ->state(fn(InviteVendor $record) => $record->total_accounts ?? 0)
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('total_accounts', $direction);
                     }),
                 TextColumn::make('avg_invites')
                     ->label('Среднее кол-во инвайта')
-                    ->state(fn(Vendor $record) => is_null($record->avg_invites) ? 0 : round($record->avg_invites, 2))
+                    ->state(fn(InviteVendor $record) => is_null($record->avg_invites) ? 0 : round($record->avg_invites, 2))
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('avg_invites', $direction);
                     }),
                 TextColumn::make('worked_accounts')
                     ->label('Отработали')
-                    ->state(fn(Vendor $record) => $record->worked_accounts ?? 0)
+                    ->state(fn(InviteVendor $record) => $record->worked_accounts ?? 0)
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('worked_accounts', $direction);
                     }),
                 TextColumn::make('zero_accounts')
                     ->label('Нулевые')
-                    ->state(fn(Vendor $record) => $record->zero_accounts ?? 0)
+                    ->state(fn(InviteVendor $record) => $record->zero_accounts ?? 0)
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('zero_accounts', $direction);
                     }),
                 TextColumn::make('percent_worked')
                     ->label('% рабочих')
-                    ->state(fn(Vendor $record) => is_null($record->percent_worked) ? 0 : round($record->percent_worked, 2))
-                    ->color(function (Vendor $record) {
+                    ->state(fn(InviteVendor $record) => is_null($record->percent_worked) ? 0 : round($record->percent_worked, 2))
+                    ->color(function (InviteVendor $record) {
                         $percent = $record->percent_worked ?? 0;
                         return \App\Models\Settings::getColorForValue('percent_worked', $percent);
                     })
@@ -122,7 +121,7 @@ class InviteResource extends Resource
                     }),
                 TextColumn::make('avg_price_per_invite')
                     ->label('Средняя цена инвайта')
-                    ->state(function (Vendor $record) {
+                    ->state(function (InviteVendor $record) {
                         // Получаем ID продавца
                         $vendorId = $record->id;
 
@@ -146,9 +145,9 @@ class InviteResource extends Resource
                                 SUM(price) as total_price,
                                 SUM(stats_invites_count) as total_invites
                             FROM 
-                                accounts
+                                invite_accounts
                             WHERE 
-                                vendor_id = ?
+                                invite_vendor_id = ?
                                 $geoCondition
                         ", $params);
 
@@ -184,8 +183,8 @@ class InviteResource extends Resource
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['min_accounts'])) {
                             $min = (int) $data['min_accounts'];
-                            return $query->whereHas('accounts', function ($query) use ($min) {
-                                $query->havingRaw('COUNT(accounts.id) >= ?', [$min]);
+                            return $query->whereHas('inviteAccounts', function ($query) use ($min) {
+                                $query->havingRaw('COUNT(invite_accounts.id) >= ?', [$min]);
                             });
                         }
                         return $query;
@@ -212,8 +211,8 @@ class InviteResource extends Resource
                                         CASE WHEN COUNT(a.id) = 0 THEN 0 ELSE
                                             (SUM(CASE WHEN a.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(a.id))
                                         END
-                                    FROM accounts a
-                                    WHERE a.vendor_id = vendors.id
+                                    FROM invite_accounts a
+                                    WHERE a.invite_vendor_id = invite_vendors.id
                                 ) >= ?', [$min]);
                         }
                         if ($max !== null) {
@@ -223,8 +222,8 @@ class InviteResource extends Resource
                                         CASE WHEN COUNT(a.id) = 0 THEN 0 ELSE
                                             (SUM(CASE WHEN a.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(a.id))
                                         END
-                                    FROM accounts a
-                                    WHERE a.vendor_id = vendors.id
+                                    FROM invite_accounts a
+                                    WHERE a.invite_vendor_id = invite_vendors.id
                                 ) <= ?', [$max]);
                         }
                         return $query;
@@ -245,7 +244,7 @@ class InviteResource extends Resource
                             ->multiple()
                             ->searchable()
                             ->options(
-                                Account::query()
+                                InviteAccount::query()
                                     ->whereNotNull('geo')
                                     ->distinct()
                                     ->pluck('geo', 'geo')
@@ -256,7 +255,7 @@ class InviteResource extends Resource
                         session(['current_geo_filters' => $data['geo'] ?? []]);
                         if (!empty($data['geo'])) {
                             $geo = $data['geo'];
-                            $query->whereHas('accounts', function ($query) use ($geo) {
+                            $query->whereHas('inviteAccounts', function ($query) use ($geo) {
                                 $query->whereIn('geo', $geo);
                             });
                         }
@@ -271,12 +270,12 @@ class InviteResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['session_created_from'])) {
-                            $query->whereHas('accounts', function ($query) use ($data) {
+                            $query->whereHas('inviteAccounts', function ($query) use ($data) {
                                 $query->whereDate('session_created_at', '>=', $data['session_created_from']);
                             });
                         }
                         if (!empty($data['session_created_to'])) {
-                            $query->whereHas('accounts', function ($query) use ($data) {
+                            $query->whereHas('inviteAccounts', function ($query) use ($data) {
                                 $query->whereDate('session_created_at', '<=', $data['session_created_to']);
                             });
                         }
