@@ -66,10 +66,23 @@ class StatsResource extends Resource
                         return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
                     })
                     ->state(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
+                        $dateFrom = session('tableFilters.stats.date_from');
+                        $dateTo = session('tableFilters.stats.date_to');
+                        
+                        $accountsQuery = $record->accounts();
+                        if ($dateFrom || $dateTo) {
+                            if ($dateFrom) {
+                                $accountsQuery->whereDate('session_created_at', '>=', $dateFrom);
+                            }
+                            if ($dateTo) {
+                                $accountsQuery->whereDate('session_created_at', '<=', $dateTo);
+                            }
+                        }
+                        
+                        $total = $accountsQuery->count();
                         if ($total === 0) return 0;
                         
-                        $valid = $record->valid_accounts_count ?? 0;
+                        $valid = $accountsQuery->where('type', 'valid')->count();
                         return round(($valid / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
@@ -111,6 +124,7 @@ class StatsResource extends Resource
                 TextColumn::make('survival_earned')
                     ->label('Заработано')
                     ->money('RUB')
+                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record) {
                         $soldPrice = (float)session('tableFilters.stats.sold_price.survival_sold_price', 0);
                         $totalAccounts = $record->accounts_count ?? 0;
@@ -485,6 +499,10 @@ class StatsResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['date_from']) || !empty($data['date_to'])) {
+                            // Сохраняем даты фильтра в сессии для использования в расчетах
+                            session(['tableFilters.stats.date_from' => $data['date_from'] ?? null]);
+                            session(['tableFilters.stats.date_to' => $data['date_to'] ?? null]);
+                            
                             $query->whereHas('accounts', function ($q) use ($data) {
                                 if (!empty($data['date_from'])) {
                                     $q->whereDate('session_created_at', '>=', $data['date_from']);
@@ -493,6 +511,9 @@ class StatsResource extends Resource
                                     $q->whereDate('session_created_at', '<=', $data['date_to']);
                                 }
                             });
+                        } else {
+                            // Если фильтр очищен, удаляем значения из сессии
+                            session()->forget(['tableFilters.stats.date_from', 'tableFilters.stats.date_to']);
                         }
                         return $query;
                     }),
