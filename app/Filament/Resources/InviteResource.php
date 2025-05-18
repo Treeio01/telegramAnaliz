@@ -183,9 +183,11 @@ class InviteResource extends Resource
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['min_accounts'])) {
                             $min = (int) $data['min_accounts'];
-                            return $query->whereHas('inviteAccounts', function ($query) use ($min) {
-                                $query->havingRaw('COUNT(invite_accounts.id) >= ?', [$min]);
-                            });
+                            return $query->whereRaw('(
+                                SELECT COUNT(*)
+                                FROM invite_accounts
+                                WHERE invite_accounts.invite_vendor_id = invite_vendors.id
+                            ) >= ?', [$min]);
                         }
                         return $query;
                     }),
