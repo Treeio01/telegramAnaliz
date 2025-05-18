@@ -60,9 +60,8 @@ class StatsResource extends Resource
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 'gray';
                         
-                        // Получаем количество аккаунтов с инвайтами
-                        $accountsWithInvites = $record->accounts()->where('stats_invites_count', '>', 0)->count();
-                        $percent = $total > 0 ? round(($accountsWithInvites / $total) * 100, 2) : 0;
+                        $valid = $record->valid_accounts_count ?? 0;
+                        $percent = $total > 0 ? round(($valid / $total) * 100, 2) : 0;
                         
                         return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
                     })
@@ -70,18 +69,17 @@ class StatsResource extends Resource
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 0;
                         
-                        // Получаем количество аккаунтов с инвайтами
-                        $accountsWithInvites = $record->accounts()->where('stats_invites_count', '>', 0)->count();
-                        return round(($accountsWithInvites / $total) * 100, 2);
+                        $valid = $record->valid_accounts_count ?? 0;
+                        return round(($valid / $total) * 100, 2);
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query
                             ->withCount(['accounts'])
-                            ->withCount(['accounts as accounts_with_invites_count' => function (Builder $q) {
-                                $q->where('stats_invites_count', '>', 0);
+                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
+                                $q->where('type', 'valid');
                             }])
                             ->orderByRaw(
-                                "CASE WHEN accounts_count = 0 THEN 0 ELSE (accounts_with_invites_count * 100.0 / accounts_count) END $direction"
+                                "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
                             );
                     }),
 
