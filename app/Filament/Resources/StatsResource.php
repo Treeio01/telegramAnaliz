@@ -153,12 +153,14 @@ class StatsResource extends Resource
                     ->label('Средняя цена инвайта')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        $vendorId = $record->id;
+                        $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
+                        if (!$inviteVendor) return 0;
+
                         $geoFilters = request('tableFilters.geo.geo', []);
                         $hasGeoFilter = !empty($geoFilters);
 
                         $geoCondition = '';
-                        $params = [$vendorId];
+                        $params = [$inviteVendor->id];
 
                         if ($hasGeoFilter) {
                             $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
@@ -174,9 +176,9 @@ class StatsResource extends Resource
                                          (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
                                 END as avg_price
                             FROM 
-                                accounts
+                                invite_accounts
                             WHERE 
-                                vendor_id = ?
+                                invite_vendor_id = ?
                                 $geoCondition
                         ", $params);
 
@@ -202,9 +204,10 @@ class StatsResource extends Resource
                                              (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
                                     END
                                 FROM 
-                                    accounts
+                                    invite_accounts iv
+                                    JOIN invite_vendors ivv ON iv.invite_vendor_id = ivv.id 
                                 WHERE 
-                                    vendor_id = vendors.id
+                                    ivv.name = vendors.name
                                     $geoCondition
                             ) $direction", $params);
                     }),
