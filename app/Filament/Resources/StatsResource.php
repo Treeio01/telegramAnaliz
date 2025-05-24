@@ -239,9 +239,12 @@ class StatsResource extends Resource
                         return $inviteVendor->inviteAccounts()->sum('stats_invites_count');
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query
-                            ->withSum('accounts', 'stats_invites_count')
-                            ->orderBy('accounts_sum_stats_invites_count', $direction);
+                        return $query->orderByRaw("(
+                            SELECT COALESCE(SUM(stats_invites_count), 0)
+                            FROM invite_accounts ia
+                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
+                            WHERE iv.name = vendors.name
+                        ) {$direction}");
                     }),
 
                 TextColumn::make('invites_spent')
