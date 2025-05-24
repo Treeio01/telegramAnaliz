@@ -293,27 +293,50 @@ class StatsResource extends Resource
                         return (float)$totalAccounts * (float)$avgInvitesCount * (float)$avgInvitePrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query
-                            ->withCount('accounts')
-                            ->withSum('accounts', 'stats_invites_count')
-                            ->orderByRaw("(
+                        $geoFilters = request('tableFilters.geo.geo', []);
+                        $geoCondition = '';
+                        $params = [];
+
+                        if (!empty($geoFilters)) {
+                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
+                            $geoCondition = "AND geo IN ($placeholders)";
+                            $params = $geoFilters;
+                        }
+
+                        return $query->orderByRaw("(
+                            WITH invite_vendor_id AS (
+                                SELECT id FROM invite_vendors WHERE name = vendors.name
+                            ),
+                            total_accounts AS (
+                                SELECT COUNT(*) as count
+                                FROM invite_accounts ia
+                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
+                            ),
+                            avg_invites AS (
                                 SELECT 
                                     CASE 
-                                        WHEN accounts_count = 0 OR accounts_sum_stats_invites_count = 0 THEN 0
-                                        ELSE accounts_count * (accounts_sum_stats_invites_count / accounts_count) * (
-                                            SELECT 
-                                                CASE 
-                                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
-                                                        (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
-                                                END
-                                            FROM 
-                                                accounts
-                                            WHERE 
-                                                vendor_id = vendors.id
-                                        )
-                                    END
-                            ) {$direction}");
+                                        WHEN (SELECT count FROM total_accounts) = 0 THEN 0
+                                        ELSE SUM(stats_invites_count)::float / (SELECT count FROM total_accounts)
+                                    END as avg
+                                FROM invite_accounts ia
+                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
+                            ),
+                            avg_price AS (
+                                SELECT 
+                                    CASE 
+                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
+                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                            (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
+                                    END as price
+                                FROM invite_accounts ia
+                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
+                                {$geoCondition}
+                            )
+                            SELECT 
+                                (SELECT count FROM total_accounts) * 
+                                (SELECT avg FROM avg_invites) * 
+                                (SELECT price FROM avg_price)
+                        ) {$direction}", $params);
                     }),
 
                 TextColumn::make('invites_earned')
@@ -337,15 +360,30 @@ class StatsResource extends Resource
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
-                        return $query
-                            ->withCount('accounts')
-                            ->withSum('accounts', 'stats_invites_count')
-                            ->orderByRaw("(
-                                CAST(accounts_count AS DECIMAL(10,2)) * 
-                                CASE WHEN CAST(accounts_count AS DECIMAL(10,2)) = 0 THEN 0 
-                                ELSE (CAST(accounts_sum_stats_invites_count AS DECIMAL(10,2)) / CAST(accounts_count AS DECIMAL(10,2))) 
-                                END * CAST(? AS DECIMAL(10,2))
-                            ) {$direction}", [$soldPrice]);
+                        
+                        return $query->orderByRaw("(
+                            WITH invite_vendor_id AS (
+                                SELECT id FROM invite_vendors WHERE name = vendors.name
+                            ),
+                            total_accounts AS (
+                                SELECT COUNT(*) as count
+                                FROM invite_accounts ia
+                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
+                            ),
+                            avg_invites AS (
+                                SELECT 
+                                    CASE 
+                                        WHEN (SELECT count FROM total_accounts) = 0 THEN 0
+                                        ELSE SUM(stats_invites_count)::float / (SELECT count FROM total_accounts)
+                                    END as avg
+                                FROM invite_accounts ia
+                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
+                            )
+                            SELECT 
+                                (SELECT count FROM total_accounts) * 
+                                (SELECT avg FROM avg_invites) * 
+                                ?::float
+                        ) {$direction}", [$soldPrice]);
                     }),
 
                 TextColumn::make('total_profit')
