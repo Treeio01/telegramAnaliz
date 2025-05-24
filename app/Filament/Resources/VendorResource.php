@@ -195,40 +195,47 @@ class VendorResource extends Resource
                                     SELECT COUNT(*) 
                                     FROM accounts 
                                     WHERE accounts.vendor_id = vendors.id 
-                                    AND type = "valid" 
-                                    AND spamblock != "free"
+                                    AND type = "valid"
                                 ) = 0 THEN 0
                                 ELSE (
                                     SELECT (
                                         COUNT(*) * 100.0 / 
-                                        (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id AND type = "valid" AND spamblock != "free")
+                                        (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id AND type = "valid")
                                     )
                                     FROM accounts 
                                     WHERE accounts.vendor_id = vendors.id 
+                                    AND type = "valid"
                                     AND spamblock != "free"
                                 )
                             END ' . $direction
                         );
                     })
                     ->color(function (Vendor $record) {
-                        $validSpam = $record->accounts()
+                        $validAccounts = $record->accounts()
+                            ->where('type', 'valid')
+                            ->count();
+                        if ($validAccounts === 0) return 'gray';
+                        
+                        $validSpamAccounts = $record->accounts()
                             ->where('type', 'valid')
                             ->where('spamblock', '!=', 'free')
                             ->count();
-                        if ($validSpam === 0) return 'gray';
-                        $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
-                        $percent = round(($spam / $validSpam) * 100, 2);
-
+                            
+                        $percent = round(($validSpamAccounts / $validAccounts) * 100, 2);
                         return \App\Models\Settings::getColorForValue('spam_percent_accounts', $percent) ?? 'gray';
                     })
                     ->state(function (Vendor $record) {
-                        $validSpam = $record->accounts()
+                        $validAccounts = $record->accounts()
+                            ->where('type', 'valid')
+                            ->count();
+                        if ($validAccounts === 0) return 0;
+                        
+                        $validSpamAccounts = $record->accounts()
                             ->where('type', 'valid')
                             ->where('spamblock', '!=', 'free')
                             ->count();
-                        if ($validSpam === 0) return 0;
-                        $spam = $record->accounts()->where('spamblock', '!=', 'free')->count();
-                        return round(($spam / $validSpam) * 100, 2);
+                            
+                        return round(($validSpamAccounts / $validAccounts) * 100, 2);
                     }),
 
                 TextColumn::make('clean_accounts_count')
