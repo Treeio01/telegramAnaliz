@@ -374,15 +374,15 @@ class StatsResource extends Resource
                                 SELECT 
                                     CASE 
                                         WHEN (SELECT count FROM total_accounts) = 0 THEN 0
-                                        ELSE SUM(stats_invites_count)::float / (SELECT count FROM total_accounts)
+                                        ELSE CAST(SUM(stats_invites_count) AS DECIMAL(10,2)) / CAST((SELECT count FROM total_accounts) AS DECIMAL(10,2))
                                     END as avg
                                 FROM invite_accounts ia
                                 WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
                             )
                             SELECT 
-                                (SELECT count FROM total_accounts) * 
-                                (SELECT avg FROM avg_invites) * 
-                                ?::float
+                                CAST((SELECT count FROM total_accounts) AS DECIMAL(10,2)) * 
+                                CAST((SELECT avg FROM avg_invites) AS DECIMAL(10,2)) * 
+                                CAST(? AS DECIMAL(10,2))
                         ) {$direction}", [$soldPrice]);
                     }),
 
