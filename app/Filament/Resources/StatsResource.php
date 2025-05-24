@@ -221,7 +221,14 @@ class StatsResource extends Resource
                         
                         return $inviteVendor->inviteAccounts()->count();
                     })
-                    ->sortable(),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw("(
+                            SELECT COUNT(*)
+                            FROM invite_accounts ia
+                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
+                            WHERE iv.name = vendors.name
+                        ) {$direction}");
+                    }),
 
                 TextColumn::make('total_invites')
                     ->label('Сумма инвайтов')
