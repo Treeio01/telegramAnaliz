@@ -293,26 +293,14 @@ class StatsResource extends Resource
                         return (float)$totalAccounts * (float)$avgInvitesCount * (float)$avgInvitePrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $geoFilters = request('tableFilters.geo.geo', []);
-                        $hasGeoFilter = !empty($geoFilters);
-
-                        $geoCondition = '';
-                        $params = [];
-
-                        if ($hasGeoFilter) {
-                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND geo IN ($placeholders)";
-                            $params = $geoFilters;
-                        }
-
                         return $query
-                            ->withCount('inviteAccounts')
-                            ->withSum('inviteAccounts', 'stats_invites_count')
+                            ->withCount('accounts')
+                            ->withSum('accounts', 'stats_invites_count')
                             ->orderByRaw("(
                                 SELECT 
                                     CASE 
-                                        WHEN invite_accounts_count = 0 OR invite_accounts_sum_stats_invites_count = 0 THEN 0
-                                        ELSE invite_accounts_count * (invite_accounts_sum_stats_invites_count / invite_accounts_count) * (
+                                        WHEN accounts_count = 0 OR accounts_sum_stats_invites_count = 0 THEN 0
+                                        ELSE accounts_count * (accounts_sum_stats_invites_count / accounts_count) * (
                                             SELECT 
                                                 CASE 
                                                     WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
@@ -320,13 +308,12 @@ class StatsResource extends Resource
                                                         (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
                                                 END
                                             FROM 
-                                                invite_accounts
+                                                accounts
                                             WHERE 
-                                                invite_vendor_id = vendors.id
-                                                $geoCondition
+                                                vendor_id = vendors.id
                                         )
                                     END
-                            ) {$direction}", $params);
+                            ) {$direction}");
                     }),
 
                 TextColumn::make('invites_earned')
