@@ -298,9 +298,23 @@ class VendorResource extends Resource
                 TextColumn::make('clean_percent_accounts')
                     ->label('Чист%')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        // Используем withCount clean_accounts_count и clean_valid_accounts_count
-                        return $query->orderByRaw(
-                            'CASE WHEN clean_accounts_count = 0 THEN 0 ELSE (clean_valid_accounts_count * 100.0 / clean_accounts_count) END ' . $direction
+                        return $query->orderByRaw('
+                            CASE 
+                                WHEN (
+                                    SELECT COUNT(*) FROM accounts 
+                                    WHERE accounts.vendor_id = vendors.id 
+                                    AND spamblock = "free"
+                                ) = 0 THEN 0 
+                                ELSE (
+                                    (SELECT COUNT(*) FROM accounts 
+                                    WHERE accounts.vendor_id = vendors.id 
+                                    AND type = "valid" 
+                                    AND spamblock = "free") * 100.0 / 
+                                    (SELECT COUNT(*) FROM accounts 
+                                    WHERE accounts.vendor_id = vendors.id 
+                                    AND spamblock = "free")
+                                ) 
+                            END ' . $direction
                         );
                     })
                     ->color(function (Vendor $record) {
