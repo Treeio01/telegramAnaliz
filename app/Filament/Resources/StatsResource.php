@@ -247,32 +247,32 @@ class StatsResource extends Resource
                         ) {$direction}");
                     }),
 
-                TextColumn::make('invites_spent')
+                    TextColumn::make('invites_spent')
                     ->label('Потрачено')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
                         $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
                         if (!$inviteVendor) return 0;
-
+                
                         $totalAccounts = $inviteVendor->inviteAccounts()->count();
                         $avgInvitesCount = $totalAccounts > 0
                             ? (float)$inviteVendor->inviteAccounts()->sum('stats_invites_count') / (float)$totalAccounts
                             : 0;
-
+                
                         // Получаем среднюю цену инвайта
                         $vendorId = $inviteVendor->id;
                         $geoFilters = request('tableFilters.geo.geo', []);
                         $hasGeoFilter = !empty($geoFilters);
-
+                
                         $geoCondition = '';
                         $params = [$vendorId];
-
+                
                         if ($hasGeoFilter) {
                             $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
                             $geoCondition = "AND geo IN ($placeholders)";
                             $params = array_merge($params, $geoFilters);
                         }
-
+                
                         $result = DB::select("
                             SELECT 
                                 CASE 
@@ -286,59 +286,48 @@ class StatsResource extends Resource
                                 invite_vendor_id = ?
                                 $geoCondition
                         ", $params);
-
+                
                         $avgInvitePrice = (float)($result[0]->avg_price ?? 0);
-
+                
                         // Формула: акки * среднее кол-во инвайта * средняя цена инвайта
                         return (float)$totalAccounts * (float)$avgInvitesCount * (float)$avgInvitePrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         $geoFilters = request('tableFilters.geo.geo', []);
                         $geoCondition = '';
-                        $params = [];
-
+                        $geoParams = [];
+                
                         if (!empty($geoFilters)) {
                             $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND geo IN ($placeholders)";
-                            $params = $geoFilters;
+                            $geoCondition = "AND ia.geo IN ($placeholders)";
+                            $geoParams = $geoFilters;
                         }
-
+                
                         return $query->orderByRaw("(
-                            WITH invite_vendor_id AS (
-                                SELECT id FROM invite_vendors WHERE name = vendors.name
-                            ),
-                            total_accounts AS (
-                                SELECT COUNT(*) as count
-                                FROM invite_accounts ia
-                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
-                            ),
-                            avg_invites AS (
-                                SELECT 
-                                    CASE 
-                                        WHEN (SELECT count FROM total_accounts) = 0 THEN 0
-                                        ELSE CAST(SUM(stats_invites_count) AS DECIMAL(10,2)) / CAST((SELECT count FROM total_accounts) AS DECIMAL(10,2))
-                                    END as avg
-                                FROM invite_accounts ia
-                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
-                            ),
-                            avg_price AS (
-                                SELECT 
-                                    CASE 
-                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
-                                            (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
-                                    END as price
-                                FROM invite_accounts ia
-                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
-                                {$geoCondition}
-                            )
                             SELECT 
-                                CAST((SELECT count FROM total_accounts) AS DECIMAL(10,2)) * 
-                                CAST((SELECT avg FROM avg_invites) AS DECIMAL(10,2)) * 
-                                CAST((SELECT price FROM avg_price) AS DECIMAL(10,2))
-                        ) {$direction}", $params);
+                                CASE 
+                                    WHEN COUNT(ia.id) = 0 THEN 0
+                                    ELSE COUNT(ia.id) * 
+                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) * 
+                                         (
+                                            SELECT 
+                                                CASE 
+                                                    WHEN COUNT(ia2.id) = 0 OR AVG(ia2.stats_invites_count) = 0 THEN 0
+                                                    ELSE CAST(SUM(ia2.price) AS DECIMAL(10,2)) / 
+                                                         (CAST(AVG(ia2.stats_invites_count) AS DECIMAL(10,2)) * COUNT(ia2.id))
+                                                END
+                                            FROM invite_accounts ia2
+                                            WHERE ia2.invite_vendor_id = iv.id
+                                            $geoCondition
+                                         )
+                                END
+                            FROM invite_accounts ia
+                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
+                            WHERE iv.name = vendors.name
+                        ) {$direction}", $geoParams);
                     }),
-
+                
+                // Исправленная колонка invites_earned
                 TextColumn::make('invites_earned')
                     ->label('Заработано')
                     ->money('RUB')
@@ -346,43 +335,32 @@ class StatsResource extends Resource
                     ->state(function (Vendor $record) {
                         $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
                         if (!$inviteVendor) return 0;
-
-                        $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
+                
+                        $soldPrice = (float)(request('tableFilters.sold_price.invite_sold_price') ?? session('tableFilters.stats.sold_price.invite_sold_price', 0));
                         $totalAccounts = $inviteVendor->inviteAccounts()->count();
                         $avgInvitesCount = $totalAccounts > 0
                             ? $inviteVendor->inviteAccounts()->sum('stats_invites_count') / $totalAccounts
                             : 0;
-
+                
                         // Формула: акки * среднее кол-во инвайта * цена инвайта из фильтра
                         $earned = (float)$totalAccounts * (float)$avgInvitesCount * (float)$soldPrice;
-
+                
                         return $earned;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = (float)session('tableFilters.stats.sold_price.invite_sold_price', 0);
-
+                        $soldPrice = (float)(request('tableFilters.sold_price.invite_sold_price') ?? session('tableFilters.stats.sold_price.invite_sold_price', 0));
+                
                         return $query->orderByRaw("(
-                            WITH invite_vendor_id AS (
-                                SELECT id FROM invite_vendors WHERE name = vendors.name
-                            ),
-                            total_accounts AS (
-                                SELECT COUNT(*) as count
-                                FROM invite_accounts ia
-                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
-                            ),
-                            avg_invites AS (
-                                SELECT 
-                                    CASE 
-                                        WHEN (SELECT count FROM total_accounts) = 0 THEN 0
-                                        ELSE CAST(SUM(stats_invites_count) AS DECIMAL(10,2)) / CAST((SELECT count FROM total_accounts) AS DECIMAL(10,2))
-                                    END as avg
-                                FROM invite_accounts ia
-                                WHERE ia.invite_vendor_id = (SELECT id FROM invite_vendor_id)
-                            )
                             SELECT 
-                                CAST((SELECT count FROM total_accounts) AS DECIMAL(10,2)) * 
-                                CAST((SELECT avg FROM avg_invites) AS DECIMAL(10,2)) * 
-                                CAST(? AS DECIMAL(10,2))
+                                CASE 
+                                    WHEN COUNT(ia.id) = 0 THEN 0
+                                    ELSE COUNT(ia.id) * 
+                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) * 
+                                         ?
+                                END
+                            FROM invite_accounts ia
+                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
+                            WHERE iv.name = vendors.name
                         ) {$direction}", [$soldPrice]);
                     }),
 
