@@ -27,7 +27,7 @@ class InviteVendorProfile extends Page implements HasTable
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
     protected static ?string $title = 'Профиль продавца инвайтов';
     protected static ?string $slug = 'invite-vendor-profile';
-    protected static string $view = 'filament.resources.invite-vendor-profile-resource.pages.invite-vendor-profile';
+    protected static string $view = 'filament.pages.invite-vendor-profile';
 
     public $inviteVendor;
 
