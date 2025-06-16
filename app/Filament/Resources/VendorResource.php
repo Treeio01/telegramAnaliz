@@ -532,6 +532,7 @@ class VendorResource extends Resource
                             ->label('Гео')
                             ->multiple()
                             ->searchable()
+                            ->live()
                             ->options(
                                 \App\Models\Account::query()
                                     ->whereNotNull('geo')
