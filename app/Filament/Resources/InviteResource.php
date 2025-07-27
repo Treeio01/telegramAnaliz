@@ -37,15 +37,24 @@ class InviteResource extends Resource
         // Получаем активные фильтры GEO, если они установлены
         $geoFilters = $table->getFilters()['geo']['geo'] ?? [];
         $hasGeoFilter = !empty($geoFilters);
+        $fromDate = request('tableFilters.session_created_date_range.session_created_from');
+        $toDate = request('tableFilters.session_created_date_range.session_created_to');
 
         return $table
-            ->query(function () use ($hasGeoFilter, $geoFilters) {
+            ->query(function () use ($hasGeoFilter, $geoFilters, $fromDate, $toDate) {
                 $query = InviteVendor::query();
-                
-                // Формируем selectRaw для нужных метрик
-                $geoCondition = $hasGeoFilter
-                    ? 'invite_accounts.geo IN ("' . implode('","', $geoFilters) . '")'
-                    : '1=1';
+
+                $geoCondition = '1=1';
+                if ($hasGeoFilter) {
+                    $geoCondition .= ' AND invite_accounts.geo IN ("' . implode('","', $geoFilters) . '")';
+                }
+                if ($fromDate) {
+                    $geoCondition .= ' AND invite_accounts.session_created_at >= "' . $fromDate . '"';
+                }
+                if ($toDate) {
+                    $geoCondition .= ' AND invite_accounts.session_created_at <= "' . $toDate . '"';
+                }
+
 
                 $query->selectRaw("
                     invite_vendors.*,
@@ -67,8 +76,8 @@ class InviteResource extends Resource
                         ELSE 0
                     END as avg_price_per_invite
                 ")
-                ->leftJoin('invite_accounts', 'invite_vendors.id', '=', 'invite_accounts.invite_vendor_id')
-                ->groupBy('invite_vendors.id');
+                    ->leftJoin('invite_accounts', 'invite_vendors.id', '=', 'invite_accounts.invite_vendor_id')
+                    ->groupBy('invite_vendors.id');
 
                 return $query;
             })
