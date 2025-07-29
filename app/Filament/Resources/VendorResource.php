@@ -27,361 +27,97 @@ class VendorResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
-        ->modifyQueryUsing(function (Builder $query) {
-            // Извлекаем значения фильтров из запроса
-            $geoFilter = request()->input('tableFilters.geo.geo', []);
-            $sessionFromFilter = request()->input('tableFilters.session_created_at_range.session_created_from');
-            $sessionToFilter = request()->input('tableFilters.session_created_at_range.session_created_to');
-        
-            return $query->withCount([
-                // Всего аккаунтов
-                'accounts' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // Валид
-                'accounts as valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('type', 'valid');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // Невалид
-                'accounts as dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('type', 'dead');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // Спам (любые кроме 'free')
-                'accounts as spam_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('spamblock', '!=', 'free');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // СпамВалид
-                'accounts as spam_valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('type', 'valid')->where('spamblock', '!=', 'free');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // СпамМертвые
-                'accounts as spam_dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('type', 'dead')->where('spamblock', '!=', 'free');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // Чистые (только free)
-                'accounts as clean_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('spamblock', 'free');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // Чистые валидные
-                'accounts as clean_valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('type', 'valid')->where('spamblock', 'free');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-                // Чистые невалидные
-                'accounts as clean_dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                    $q->where('type', 'dead')->where('spamblock', 'free');
-                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
-                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                },
-            ]);
-        })
-        
+            ->modifyQueryUsing(function (Builder $query) {
+                // Извлекаем значения фильтров из запроса
+                $geoFilter = request()->input('tableFilters.geo.geo', []);
+                $sessionFromFilter = request()->input('tableFilters.session_created_at_range.session_created_from');
+                $sessionToFilter = request()->input('tableFilters.session_created_at_range.session_created_to');
+
+                return $query->withCount([
+                    // Всего аккаунтов
+                    'accounts' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // Валид
+                    'accounts as valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('type', 'valid');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // Невалид
+                    'accounts as dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('type', 'dead');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // Спам (любые кроме 'free')
+                    'accounts as spam_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('spamblock', '!=', 'free');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // СпамВалид
+                    'accounts as spam_valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('type', 'valid')->where('spamblock', '!=', 'free');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // СпамМертвые
+                    'accounts as spam_dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('type', 'dead')->where('spamblock', '!=', 'free');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // Чистые (только free)
+                    'accounts as clean_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('spamblock', 'free');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // Чистые валидные
+                    'accounts as clean_valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('type', 'valid')->where('spamblock', 'free');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                    // Чистые невалидные
+                    'accounts as clean_dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                        $q->where('type', 'dead')->where('spamblock', 'free');
+                        if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                        if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                        if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                    },
+                ]);
+            })
+
 
             ->columns([
-                TextColumn::make('copy_name')
-                    ->label('')
-                    ->state('📋')  // Эмодзи буфера обмена
-                    ->copyable()
-                    ->copyableState(fn(Vendor $record): string => $record->name)
-                    ->copyMessage('Скопировано')
-                    ->copyMessageDuration(2000),
-                TextColumn::make('name')
-                    ->label('Продавец')
-                    ->searchable()
-                    ->sortable()
-                    ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
-
-                TextColumn::make('accounts_count')
-                    ->label('Всего аккаунтов')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderBy('accounts_count', $direction);
-                    }),
-
-                TextColumn::make('valid_accounts_count')
-                    ->label('Валид')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND type = "valid"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        return $record->accounts()->where('type', 'valid')->count();
-                    }),
-
-                TextColumn::make('dead_accounts_count')
-                    ->label('Невалид')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND type = "dead"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        return $record->accounts()->where('type', 'dead')->count();
-                    }),
-
+                TextColumn::make('name')->label('Продавец')->searchable()->sortable(),
+                TextColumn::make('accounts_count')->label('Всего аккаунтов'),
+                TextColumn::make('valid_accounts_count')->label('Валид'),
+                TextColumn::make('dead_accounts_count')->label('Невалид'),
                 TextColumn::make('survival_rate')
                     ->label('Выживаемость')
-                    ->color(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        if ($total === 0) return 'gray';
-                        $valid = $record->valid_accounts_count ?? 0;
-                        $percent = round(($valid / $total) * 100, 2);
-                        return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
-                    })
-                    ->state(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        if ($total === 0) return 0;
-                        $valid = $record->valid_accounts_count ?? 0;
-                        return round(($valid / $total) * 100, 2);
-                    })
-                    // Исправлено: сортировка survival_rate по valid_accounts_count / accounts_count
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        // Используем valid_accounts_count и accounts_count, которые уже withCount-нуты
-                        return $query->orderByRaw(
-                            'CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END ' . $direction
-                        );
-                    }),
-
-                TextColumn::make('spam_accounts_count')
-                    ->label('Спам')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND spamblock != "free"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        return $record->accounts()
-                            ->where('spamblock', '!=', 'free')
-                            ->count();
-                    }),
-
-                TextColumn::make('spam_valid_accounts_count')
-                    ->label('СпамV')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND type = "valid" 
-                                AND spamblock != "free"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        return $record->accounts()
-                            ->where('type', 'valid')
-                            ->where('spamblock', '!=', 'free')
-                            ->count();
-                    }),
-
-                TextColumn::make('spam_dead_accounts_count')
-                    ->label('СпамM')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND type = "dead" 
-                                AND spamblock != "free"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        return $record->accounts()
-                            ->where('type', 'dead')
-                            ->where('spamblock', '!=', 'free')
-                            ->count();
-                    }),
-
-                TextColumn::make('spam_percent_accounts')
-                    ->label('Спам %')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            CASE 
-                                WHEN (
-                                    SELECT COUNT(*) 
-                                    FROM accounts 
-                                    WHERE accounts.vendor_id = vendors.id 
-                                    AND type = "valid"
-                                ) = 0 THEN 0
-                                ELSE (
-                                    SELECT (
-                                        COUNT(*) * 100.0 / 
-                                        (SELECT COUNT(*) FROM accounts WHERE accounts.vendor_id = vendors.id AND type = "valid")
-                                    )
-                                    FROM accounts 
-                                    WHERE accounts.vendor_id = vendors.id 
-                                    AND type = "valid"
-                                    AND spamblock != "free"
-                                )
-                            END ' . $direction
-                        );
-                    })
-                    ->color(function (Vendor $record) {
-                        $validAccounts = $record->accounts()
-                            ->where('type', 'valid')
-                            ->count();
-                        if ($validAccounts === 0) return 'gray';
-                        
-                        $validSpamAccounts = $record->accounts()
-                            ->where('type', 'valid')
-                            ->where('spamblock', '!=', 'free')
-                            ->count();
-                            
-                        $percent = round(($validSpamAccounts / $validAccounts) * 100, 2);
-                        return \App\Models\Settings::getColorForValue('spam_percent_accounts', $percent) ?? 'gray';
-                    })
-                    ->state(function (Vendor $record) {
-                        $validAccounts = $record->accounts()
-                            ->where('type', 'valid')
-                            ->count();
-                        if ($validAccounts === 0) return 0;
-                        
-                        $validSpamAccounts = $record->accounts()
-                            ->where('type', 'valid')
-                            ->where('spamblock', '!=', 'free')
-                            ->count();
-                            
-                        return round(($validSpamAccounts / $validAccounts) * 100, 2);
-                    }),
-
-                TextColumn::make('clean_accounts_count')
-                    ->label('Чист')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND spamblock = "free"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        // Используем withCount, чтобы не делать лишний запрос
-                        return $record->clean_accounts_count ?? $record->accounts()->where('spamblock', 'free')->count();
-                    }),
-
-                TextColumn::make('clean_valid_accounts_count')
-                    ->label('ЧистV')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND type = "valid" 
-                                AND spamblock = "free"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        return $record->accounts()
-                            ->where('type', 'valid')
-                            ->where('spamblock', 'free')
-                            ->count();
-                    }),
-
-                TextColumn::make('clean_dead_accounts_count')
-                    ->label('ЧистM')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw(
-                            '
-                            (
-                                SELECT COUNT(*) FROM accounts 
-                                WHERE accounts.vendor_id = vendors.id 
-                                AND type = "dead" 
-                                AND spamblock = "free"
-                            ) ' . $direction
-                        );
-                    })
-                    ->state(function (Vendor $record) {
-                        return $record->accounts()
-                            ->where('type', 'dead')
-                            ->where('spamblock', 'free')
-                            ->count();
-                    }),
-
+                    ->state(fn($record) => $record->accounts_count ? round($record->valid_accounts_count / $record->accounts_count * 100, 2) : 0),
+                TextColumn::make('spam_accounts_count')->label('Спам'),
+                TextColumn::make('spam_valid_accounts_count')->label('СпамV'),
+                TextColumn::make('spam_dead_accounts_count')->label('СпамM'),
+                TextColumn::make('clean_accounts_count')->label('Чист'),
+                TextColumn::make('clean_valid_accounts_count')->label('ЧистV'),
+                TextColumn::make('clean_dead_accounts_count')->label('ЧистM'),
                 TextColumn::make('clean_percent_accounts')
                     ->label('Чист%')
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw('
-                            CASE 
-                                WHEN (
-                                    SELECT COUNT(*) FROM accounts 
-                                    WHERE accounts.vendor_id = vendors.id 
-                                    AND spamblock = "free"
-                                ) = 0 THEN 0 
-                                ELSE (
-                                    (SELECT COUNT(*) FROM accounts 
-                                    WHERE accounts.vendor_id = vendors.id 
-                                    AND type = "valid" 
-                                    AND spamblock = "free") * 100.0 / 
-                                    (SELECT COUNT(*) FROM accounts 
-                                    WHERE accounts.vendor_id = vendors.id 
-                                    AND spamblock = "free")
-                                ) 
-                            END ' . $direction
-                        );
-                    })
-                    ->color(function (Vendor $record) {
-                        $cleanTotal = $record->clean_accounts_count ?? $record->accounts()->where('spamblock', 'free')->count();
-                        if ($cleanTotal === 0) return 'gray';
-                        $cleanValid = $record->clean_valid_accounts_count ?? $record->accounts()->where('type', 'valid')->where('spamblock', 'free')->count();
-                        $percent = round(($cleanValid / $cleanTotal) * 100, 2);
-                        return \App\Models\Settings::getColorForValue('clean_percent_accounts', $percent) ?? 'gray';
-                    })
-                    ->state(function (Vendor $record) {
-                        $cleanTotal = $record->clean_accounts_count ?? $record->accounts()->where('spamblock', 'free')->count();
-                        if ($cleanTotal === 0) return 0;
-                        $cleanValid = $record->clean_valid_accounts_count ?? $record->accounts()->where('type', 'valid')->where('spamblock', 'free')->count();
-                        return round(($cleanValid / $cleanTotal) * 100, 2);
-                    }),
+                    ->state(fn($record) => $record->clean_accounts_count ? round($record->clean_valid_accounts_count / $record->clean_accounts_count * 100, 2) : 0),
 
-                Tables\Columns\CheckboxColumn::make('del_user')
-                    ->label('del_user')
-                    ->sortable()
 
             ])
             ->filters([
