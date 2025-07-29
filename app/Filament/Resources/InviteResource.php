@@ -75,8 +75,8 @@ class InviteResource extends Resource
                     ELSE 0
                 END as avg_price_per_invite
             ')
-                    ->leftJoin(DB::raw("invite_accounts ON $onSql"))
-                    ->groupBy('invite_vendors.id');
+            ->leftJoinRaw("invite_accounts ON $onSql")
+            ->groupBy('invite_vendors.id');
 
                 return $query;
             })
