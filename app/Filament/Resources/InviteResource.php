@@ -41,24 +41,10 @@ class InviteResource extends Resource
         $toDate = request('tableFilters.session_created_date_range.session_created_to');
 
         return $table
-            ->query(function () use ($geoFilters, $fromDate, $toDate) {
-                $query = InviteVendor::query();
-
-                $joinConditions = ['invite_vendors.id = invite_accounts.invite_vendor_id'];
-
-                if (!empty($geoFilters)) {
-                    $joinConditions[] = 'invite_accounts.geo IN ("' . implode('","', $geoFilters) . '")';
-                }
-                if ($fromDate) {
-                    $joinConditions[] = 'invite_accounts.session_created_at >= "' . $fromDate . '"';
-                }
-                if ($toDate) {
-                    $joinConditions[] = 'invite_accounts.session_created_at <= "' . $toDate . '"';
-                }
-
-                $onSql = implode(' AND ', $joinConditions);
-
-                $query->selectRaw('
+        ->query(function () use ($geoFilters, $fromDate, $toDate) {
+            $query = InviteVendor::query();
+        
+            $query->selectRaw('
                 invite_vendors.*,
                 COUNT(invite_accounts.id) as total_accounts,
                 AVG(invite_accounts.stats_invites_count) as avg_invites,
@@ -75,11 +61,23 @@ class InviteResource extends Resource
                     ELSE 0
                 END as avg_price_per_invite
             ')
-            ->leftJoinRaw("invite_accounts ON $onSql")
-            ->groupBy('invite_vendors.id');
-
-                return $query;
+            ->leftJoin('invite_accounts', function ($join) use ($geoFilters, $fromDate, $toDate) {
+                $join->on('invite_vendors.id', '=', 'invite_accounts.invite_vendor_id');
+                if (!empty($geoFilters)) {
+                    $join->whereIn('invite_accounts.geo', $geoFilters);
+                }
+                if ($fromDate) {
+                    $join->where('invite_accounts.session_created_at', '>=', $fromDate);
+                }
+                if ($toDate) {
+                    $join->where('invite_accounts.session_created_at', '<=', $toDate);
+                }
             })
+            ->groupBy('invite_vendors.id');
+        
+            return $query;
+        })
+        
 
             ->columns([
                 TextColumn::make('copy_name')
