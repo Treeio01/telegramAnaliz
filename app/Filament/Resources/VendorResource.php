@@ -107,16 +107,41 @@ class VendorResource extends Resource
                 TextColumn::make('dead_accounts_count')->label('Невалид'),
                 TextColumn::make('survival_rate')
                     ->label('Выживаемость')
-                    ->state(fn($record) => $record->accounts_count ? round($record->valid_accounts_count / $record->accounts_count * 100, 2) : 0),
+                    ->state(fn($record) => $record->accounts_count ? round($record->valid_accounts_count / $record->accounts_count * 100, 2) : 0)
+                    ->color(function ($record) {
+                        $total = $record->accounts_count ?? 0;
+                        if ($total === 0) return 'gray';
+                        $valid = $record->valid_accounts_count ?? 0;
+                        $percent = round(($valid / $total) * 100, 2);
+                        return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
+                    }),
                 TextColumn::make('spam_accounts_count')->label('Спам'),
                 TextColumn::make('spam_valid_accounts_count')->label('СпамV'),
                 TextColumn::make('spam_dead_accounts_count')->label('СпамM'),
+                TextColumn::make('spam_percent_accounts')
+                    ->label('Спам %')
+                    ->state(fn($record) => $record->valid_accounts_count ? round($record->spam_valid_accounts_count / $record->valid_accounts_count * 100, 2) : 0)
+                    ->color(function ($record) {
+                        $valid = $record->valid_accounts_count ?? 0;
+                        if ($valid === 0) return 'gray';
+                        $spamValid = $record->spam_valid_accounts_count ?? 0;
+                        $percent = round(($spamValid / $valid) * 100, 2);
+                        return \App\Models\Settings::getColorForValue('spam_percent_accounts', $percent) ?? 'gray';
+                    }),
                 TextColumn::make('clean_accounts_count')->label('Чист'),
                 TextColumn::make('clean_valid_accounts_count')->label('ЧистV'),
                 TextColumn::make('clean_dead_accounts_count')->label('ЧистM'),
                 TextColumn::make('clean_percent_accounts')
                     ->label('Чист%')
-                    ->state(fn($record) => $record->clean_accounts_count ? round($record->clean_valid_accounts_count / $record->clean_accounts_count * 100, 2) : 0),
+                    ->state(fn($record) => $record->clean_accounts_count ? round($record->clean_valid_accounts_count / $record->clean_accounts_count * 100, 2) : 0)
+                    ->color(function ($record) {
+                        $cleanTotal = $record->clean_accounts_count ?? 0;
+                        if ($cleanTotal === 0) return 'gray';
+                        $cleanValid = $record->clean_valid_accounts_count ?? 0;
+                        $percent = round(($cleanValid / $cleanTotal) * 100, 2);
+                        return \App\Models\Settings::getColorForValue('clean_percent_accounts', $percent) ?? 'gray';
+                    }),
+                Tables\Columns\CheckboxColumn::make('del_user')->label('del_user')->sortable(),
 
 
             ])
