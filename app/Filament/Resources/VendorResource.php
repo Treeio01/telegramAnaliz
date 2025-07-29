@@ -27,11 +27,12 @@ class VendorResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
-            ->modifyQueryUsing(function (Builder $query) {
-                // Извлекаем значения фильтров из запроса
-                $geoFilter = request()->input('tableFilters.geo.geo', []);
-                $sessionFromFilter = request()->input('tableFilters.session_created_at_range.session_created_from');
-                $sessionToFilter = request()->input('tableFilters.session_created_at_range.session_created_to');
+            ->modifyQueryUsing(function (Builder $query, $table) {
+                // Используем Livewire-стейт фильтров
+                $filters = method_exists($table, 'getFiltersState') ? $table->getFiltersState() : request()->input('tableFilters', []);
+                $geoFilter = $filters['geo']['geo'] ?? [];
+                $sessionFromFilter = $filters['session_created_at_range']['session_created_from'] ?? null;
+                $sessionToFilter = $filters['session_created_at_range']['session_created_to'] ?? null;
 
                 return $query->withCount([
                     // Всего аккаунтов
@@ -54,28 +55,28 @@ class VendorResource extends Resource
                         if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
                         if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
                     },
-                    // Спам (любые кроме 'free')
+                    // Спам
                     'accounts as spam_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
                         $q->where('spamblock', '!=', 'free');
                         if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
                         if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
                         if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
                     },
-                    // СпамВалид
+                    // Спам Валид
                     'accounts as spam_valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
                         $q->where('type', 'valid')->where('spamblock', '!=', 'free');
                         if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
                         if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
                         if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
                     },
-                    // СпамМертвые
+                    // Спам Мертвые
                     'accounts as spam_dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
                         $q->where('type', 'dead')->where('spamblock', '!=', 'free');
                         if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
                         if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
                         if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
                     },
-                    // Чистые (только free)
+                    // Чистые
                     'accounts as clean_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
                         $q->where('spamblock', 'free');
                         if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
@@ -99,28 +100,58 @@ class VendorResource extends Resource
                 ]);
             })
 
-
             ->columns([
-                TextColumn::make('name')->label('Продавец')->searchable()->sortable(),
-                TextColumn::make('accounts_count')->label('Всего аккаунтов'),
-                TextColumn::make('valid_accounts_count')->label('Валид'),
-                TextColumn::make('dead_accounts_count')->label('Невалид'),
+                TextColumn::make('name')
+                    ->label('Продавец')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('accounts_count')
+                    ->label('Всего аккаунтов')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('accounts_count', $direction)),
+                TextColumn::make('valid_accounts_count')
+                    ->label('Валид')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('valid_accounts_count', $direction)),
+                TextColumn::make('dead_accounts_count')
+                    ->label('Невалид')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('dead_accounts_count', $direction)),
                 TextColumn::make('survival_rate')
                     ->label('Выживаемость')
-                    ->state(fn($record) => $record->accounts_count ? round($record->valid_accounts_count / $record->accounts_count * 100, 2) : 0)
+                    ->state(
+                        fn($record) =>
+                        $record->accounts_count
+                            ? round($record->valid_accounts_count / $record->accounts_count * 100, 2)
+                            : 0
+                    )
                     ->color(function ($record) {
                         $total = $record->accounts_count ?? 0;
                         if ($total === 0) return 'gray';
                         $valid = $record->valid_accounts_count ?? 0;
                         $percent = round(($valid / $total) * 100, 2);
                         return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
-                    }),
-                TextColumn::make('spam_accounts_count')->label('Спам'),
-                TextColumn::make('spam_valid_accounts_count')->label('СпамV'),
-                TextColumn::make('spam_dead_accounts_count')->label('СпамM'),
+                    })
+                    ->sortable(
+                        query: fn(Builder $query, $direction) =>
+                        $query->orderByRaw(
+                            'CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END ' . $direction
+                        )
+                    ),
+                TextColumn::make('spam_accounts_count')
+                    ->label('Спам')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('spam_accounts_count', $direction)),
+                TextColumn::make('spam_valid_accounts_count')
+                    ->label('СпамV')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('spam_valid_accounts_count', $direction)),
+                TextColumn::make('spam_dead_accounts_count')
+                    ->label('СпамM')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('spam_dead_accounts_count', $direction)),
                 TextColumn::make('spam_percent_accounts')
                     ->label('Спам %')
-                    ->state(fn($record) => $record->valid_accounts_count ? round($record->spam_valid_accounts_count / $record->valid_accounts_count * 100, 2) : 0)
+                    ->state(
+                        fn($record) =>
+                        $record->valid_accounts_count
+                            ? round($record->spam_valid_accounts_count / $record->valid_accounts_count * 100, 2)
+                            : 0
+                    )
                     ->color(function ($record) {
                         $valid = $record->valid_accounts_count ?? 0;
                         if ($valid === 0) return 'gray';
@@ -128,12 +159,33 @@ class VendorResource extends Resource
                         $percent = round(($spamValid / $valid) * 100, 2);
                         return \App\Models\Settings::getColorForValue('spam_percent_accounts', $percent) ?? 'gray';
                     }),
-                TextColumn::make('clean_accounts_count')->label('Чист'),
-                TextColumn::make('clean_valid_accounts_count')->label('ЧистV'),
-                TextColumn::make('clean_dead_accounts_count')->label('ЧистM'),
+                TextColumn::make('clean_accounts_count')
+                    ->label('Чист')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('clean_accounts_count', $direction)),
+                TextColumn::make('clean_valid_accounts_count')
+                    ->label('ЧистV')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('clean_valid_accounts_count', $direction)),
+                TextColumn::make('clean_dead_accounts_count')
+                    ->label('ЧистM')
+                    ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('clean_dead_accounts_count', $direction)),
                 TextColumn::make('clean_percent_accounts')
                     ->label('Чист%')
-                    ->state(fn($record) => $record->clean_accounts_count ? round($record->clean_valid_accounts_count / $record->clean_accounts_count * 100, 2) : 0)
+                    ->state(
+                        fn($record) =>
+                        $record->clean_accounts_count
+                            ? round($record->clean_valid_accounts_count / $record->clean_accounts_count * 100, 2)
+                            : 0
+                    )
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        // Сортировка — через orderByRaw на withCount-значениях
+                        return $query->orderByRaw("
+                            CASE 
+                                WHEN (clean_accounts_count) > 0
+                                THEN (clean_valid_accounts_count * 100.0 / clean_accounts_count)
+                                ELSE 0
+                            END $direction
+                        ");
+                    })
                     ->color(function ($record) {
                         $cleanTotal = $record->clean_accounts_count ?? 0;
                         if ($cleanTotal === 0) return 'gray';
@@ -141,10 +193,11 @@ class VendorResource extends Resource
                         $percent = round(($cleanValid / $cleanTotal) * 100, 2);
                         return \App\Models\Settings::getColorForValue('clean_percent_accounts', $percent) ?? 'gray';
                     }),
-                Tables\Columns\CheckboxColumn::make('del_user')->label('del_user')->sortable(),
-
-
+                Tables\Columns\CheckboxColumn::make('del_user')
+                    ->label('del_user')
+                    ->sortable(),
             ])
+
             ->filters([
                 Filter::make('min_accounts')
                     ->form([
@@ -169,21 +222,19 @@ class VendorResource extends Resource
 
                 Filter::make('survival_rate')
                     ->form([
-                        \Filament\Forms\Components\TextInput::make('survival_rate_min')
+                        TextInput::make('survival_rate_min')
                             ->numeric()
                             ->label('Мин. выживаемость (%)')
                             ->default(null),
-                        \Filament\Forms\Components\TextInput::make('survival_rate_max')
+                        TextInput::make('survival_rate_max')
                             ->numeric()
                             ->label('Макс. выживаемость (%)')
                             ->default(null),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        $survivalRateQuery = $query;
-
                         if (!empty($data['survival_rate_min'])) {
                             $min = (float) $data['survival_rate_min'];
-                            $survivalRateQuery = $query->whereRaw("
+                            $query->whereRaw("
                                 (
                                     SELECT 
                                         CASE 
@@ -196,10 +247,9 @@ class VendorResource extends Resource
                                 ) >= ?
                             ", [$min]);
                         }
-
                         if (!empty($data['survival_rate_max'])) {
                             $max = (float) $data['survival_rate_max'];
-                            $survivalRateQuery = $query->whereRaw("
+                            $query->whereRaw("
                                 (
                                     SELECT 
                                         CASE 
@@ -212,11 +262,9 @@ class VendorResource extends Resource
                                 ) <= ?
                             ", [$max]);
                         }
-
-                        return $survivalRateQuery;
+                        return $query;
                     }),
 
-                // Добавляем фильтр по проценту чистых аккаунтов
                 Filter::make('clean_percent_accounts')
                     ->form([
                         TextInput::make('clean_percent_accounts')
@@ -227,13 +275,15 @@ class VendorResource extends Resource
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['clean_percent_accounts'])) {
                             $min = (int) $data['clean_percent_accounts'];
-                            // Аналогично survival_rate, только по spamblock = 'free'
                             return $query->whereRaw("
                                 (
                                     SELECT 
                                         CASE 
-                                            WHEN COUNT(*) > 0 
-                                            THEN (SUM(CASE WHEN spamblock = 'free' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+                                            WHEN SUM(CASE WHEN spamblock = 'free' THEN 1 ELSE 0 END) > 0
+                                            THEN (
+                                                SUM(CASE WHEN type = 'valid' AND spamblock = 'free' THEN 1 ELSE 0 END) * 100.0
+                                                / SUM(CASE WHEN spamblock = 'free' THEN 1 ELSE 0 END)
+                                            )
                                             ELSE 0 
                                         END
                                     FROM accounts 
@@ -255,7 +305,6 @@ class VendorResource extends Resource
                                     $set('geo', $preset->geos);
                                 }
                             }),
-
                         Select::make('geo')
                             ->label('Гео')
                             ->multiple()
@@ -299,10 +348,8 @@ class VendorResource extends Resource
                         }
                         return $query;
                     }),
-
             ]);
     }
-
     public static function form(Forms\Form $form): Forms\Form
     {
         return $form
