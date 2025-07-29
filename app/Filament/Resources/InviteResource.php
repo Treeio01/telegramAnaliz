@@ -41,46 +41,46 @@ class InviteResource extends Resource
         $toDate = request('tableFilters.session_created_date_range.session_created_to');
 
         return $table
-            ->query(function () use ($hasGeoFilter, $geoFilters, $fromDate, $toDate) {
+            ->query(function () use ($geoFilters, $fromDate, $toDate) {
                 $query = InviteVendor::query();
 
-                $geoCondition = '1=1';
-                if ($hasGeoFilter) {
-                    $geoCondition .= ' AND invite_accounts.geo IN ("' . implode('","', $geoFilters) . '")';
+                $joinConditions = ['invite_vendors.id = invite_accounts.invite_vendor_id'];
+
+                if (!empty($geoFilters)) {
+                    $joinConditions[] = 'invite_accounts.geo IN ("' . implode('","', $geoFilters) . '")';
                 }
                 if ($fromDate) {
-                    $geoCondition .= ' AND invite_accounts.session_created_at >= "' . $fromDate . '"';
+                    $joinConditions[] = 'invite_accounts.session_created_at >= "' . $fromDate . '"';
                 }
                 if ($toDate) {
-                    $geoCondition .= ' AND invite_accounts.session_created_at <= "' . $toDate . '"';
+                    $joinConditions[] = 'invite_accounts.session_created_at <= "' . $toDate . '"';
                 }
 
+                $onSql = implode(' AND ', $joinConditions);
 
-                $query->selectRaw("
-                    invite_vendors.*,
-                    COUNT(invite_accounts.id) as total_accounts,
-                    AVG(CASE WHEN $geoCondition THEN invite_accounts.stats_invites_count ELSE NULL END) as avg_invites,
-                    SUM(CASE WHEN $geoCondition AND invite_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) as worked_accounts,
-                    SUM(CASE WHEN $geoCondition AND (invite_accounts.stats_invites_count = 0 OR invite_accounts.stats_invites_count IS NULL) THEN 1 ELSE 0 END) as zero_accounts,
-                    CASE WHEN COUNT(invite_accounts.id) = 0 THEN 0 ELSE
-                        (SUM(CASE WHEN $geoCondition AND invite_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(invite_accounts.id))
-                    END as percent_worked,
-                    
-                    /* Суммы для расчета средней цены */
-                    SUM(CASE WHEN $geoCondition THEN invite_accounts.price ELSE 0 END) as total_price,
-                    SUM(CASE WHEN $geoCondition THEN invite_accounts.stats_invites_count ELSE 0 END) as total_invites,
-                    CASE 
-                        WHEN COUNT(invite_accounts.id) > 0 
-                        THEN CAST(SUM(invite_accounts.price) AS DECIMAL(10,2)) / 
-                             (CAST(AVG(invite_accounts.stats_invites_count) AS DECIMAL(10,2)) * COUNT(invite_accounts.id))
-                        ELSE 0
-                    END as avg_price_per_invite
-                ")
-                    ->leftJoin('invite_accounts', 'invite_vendors.id', '=', 'invite_accounts.invite_vendor_id')
+                $query->selectRaw('
+                invite_vendors.*,
+                COUNT(invite_accounts.id) as total_accounts,
+                AVG(invite_accounts.stats_invites_count) as avg_invites,
+                SUM(CASE WHEN invite_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) as worked_accounts,
+                SUM(CASE WHEN invite_accounts.stats_invites_count = 0 OR invite_accounts.stats_invites_count IS NULL THEN 1 ELSE 0 END) as zero_accounts,
+                CASE WHEN COUNT(invite_accounts.id) = 0 THEN 0 ELSE
+                    (SUM(CASE WHEN invite_accounts.stats_invites_count > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(invite_accounts.id))
+                END as percent_worked,
+                SUM(invite_accounts.price) as total_price,
+                SUM(invite_accounts.stats_invites_count) as total_invites,
+                CASE 
+                    WHEN SUM(invite_accounts.stats_invites_count) > 0 
+                    THEN SUM(invite_accounts.price) / SUM(invite_accounts.stats_invites_count)
+                    ELSE 0
+                END as avg_price_per_invite
+            ')
+                    ->leftJoin(DB::raw("invite_accounts ON $onSql"))
                     ->groupBy('invite_vendors.id');
 
                 return $query;
             })
+
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
