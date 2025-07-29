@@ -27,111 +27,78 @@ class VendorResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
-        ->modifyQueryUsing(function (Builder $query) use ($table) {
-            // Получаем активные фильтры
-            $tableFilters = $table->getFilters();
-            $geoFilter = null;
-            $sessionFromFilter = null;
-            $sessionToFilter = null;
-            
-            // Проверяем, есть ли активные фильтры (это работает только если таблица уже инициализирована)
-            if (request()->has('tableFilters')) {
-                $filters = request()->get('tableFilters');
-                if (isset($filters['geo']['geo'])) {
-                    $geoFilter = $filters['geo']['geo'];
-                }
-                if (isset($filters['session_created_at_range'])) {
-                    $sessionFromFilter = $filters['session_created_at_range']['session_created_from'] ?? null;
-                    $sessionToFilter = $filters['session_created_at_range']['session_created_to'] ?? null;
-                }
-            }
-
-            return $query
-                ->withCount([
-                    'accounts' => function (Builder $q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                        if ($geoFilter) {
-                            $q->whereIn('geo', $geoFilter);
-                        }
-                        if ($sessionFromFilter) {
-                            $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                        }
-                        if ($sessionToFilter) {
-                            $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                        }
-                    },
-                    'accounts as accounts_count' => function (Builder $q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                        if ($geoFilter) {
-                            $q->whereIn('geo', $geoFilter);
-                        }
-                        if ($sessionFromFilter) {
-                            $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                        }
-                        if ($sessionToFilter) {
-                            $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                        }
-                    },
-                    'accounts as valid_accounts_count' => function (Builder $q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                        $q->where('type', 'valid');
-                        if ($geoFilter) {
-                            $q->whereIn('geo', $geoFilter);
-                        }
-                        if ($sessionFromFilter) {
-                            $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                        }
-                        if ($sessionToFilter) {
-                            $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                        }
-                    },
-                    'accounts as dead_accounts_count' => function (Builder $q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                        $q->where('type', 'dead');
-                        if ($geoFilter) {
-                            $q->whereIn('geo', $geoFilter);
-                        }
-                        if ($sessionFromFilter) {
-                            $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                        }
-                        if ($sessionToFilter) {
-                            $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                        }
-                    },
-                    'accounts as spam_accounts_count' => function (Builder $q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                        $q->where('spamblock', '!=', 'free');
-                        if ($geoFilter) {
-                            $q->whereIn('geo', $geoFilter);
-                        }
-                        if ($sessionFromFilter) {
-                            $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                        }
-                        if ($sessionToFilter) {
-                            $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                        }
-                    },
-                    'accounts as spam_valid_accounts_count' => function (Builder $q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                        $q->where('type', 'valid')->where('spamblock', '!=', 'free');
-                        if ($geoFilter) {
-                            $q->whereIn('geo', $geoFilter);
-                        }
-                        if ($sessionFromFilter) {
-                            $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                        }
-                        if ($sessionToFilter) {
-                            $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                        }
-                    },
-                    'accounts as clean_accounts_count' => function (Builder $q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
-                        $q->where('spamblock', 'free');
-                        if ($geoFilter) {
-                            $q->whereIn('geo', $geoFilter);
-                        }
-                        if ($sessionFromFilter) {
-                            $q->whereDate('session_created_at', '>=', $sessionFromFilter);
-                        }
-                        if ($sessionToFilter) {
-                            $q->whereDate('session_created_at', '<=', $sessionToFilter);
-                        }
-                    },
-                ]);
+        ->modifyQueryUsing(function (Builder $query) {
+            // Извлекаем значения фильтров из запроса
+            $geoFilter = request()->input('tableFilters.geo.geo', []);
+            $sessionFromFilter = request()->input('tableFilters.session_created_at_range.session_created_from');
+            $sessionToFilter = request()->input('tableFilters.session_created_at_range.session_created_to');
+        
+            return $query->withCount([
+                // Всего аккаунтов
+                'accounts' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // Валид
+                'accounts as valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('type', 'valid');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // Невалид
+                'accounts as dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('type', 'dead');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // Спам (любые кроме 'free')
+                'accounts as spam_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('spamblock', '!=', 'free');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // СпамВалид
+                'accounts as spam_valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('type', 'valid')->where('spamblock', '!=', 'free');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // СпамМертвые
+                'accounts as spam_dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('type', 'dead')->where('spamblock', '!=', 'free');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // Чистые (только free)
+                'accounts as clean_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('spamblock', 'free');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // Чистые валидные
+                'accounts as clean_valid_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('type', 'valid')->where('spamblock', 'free');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+                // Чистые невалидные
+                'accounts as clean_dead_accounts_count' => function ($q) use ($geoFilter, $sessionFromFilter, $sessionToFilter) {
+                    $q->where('type', 'dead')->where('spamblock', 'free');
+                    if (!empty($geoFilter)) $q->whereIn('geo', $geoFilter);
+                    if ($sessionFromFilter) $q->whereDate('session_created_at', '>=', $sessionFromFilter);
+                    if ($sessionToFilter) $q->whereDate('session_created_at', '<=', $sessionToFilter);
+                },
+            ]);
         })
+        
 
             ->columns([
                 TextColumn::make('copy_name')
