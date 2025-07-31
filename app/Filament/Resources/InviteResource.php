@@ -67,17 +67,16 @@ class InviteResource extends Resource
                             $join->whereIn('invite_accounts.geo', $geoFilters);
                         }
                         if ($fromDate) {
-                            // Если пришла просто дата (2025-07-29), добавь время
                             if (strlen($fromDate) == 10) {
                                 $fromDate .= ' 00:00:00';
                             }
                             $join->where('invite_accounts.session_created_at', '>=', $fromDate);
                         }
                         if ($toDate) {
-                            // Если пришла просто дата, добавь +1 день и фильтруй через <
                             if (strlen($toDate) == 10) {
-                                // Carbon обязательно должен быть подключён
-                                $toDate = \Carbon\Carbon::parse($toDate)->addDay()->format('Y-m-d 00:00:00');
+                                // Если from и to одинаковые — делаем +1 день к toDate
+                                $toDateObj = \Carbon\Carbon::parse($toDate)->addDay();
+                                $toDate = $toDateObj->format('Y-m-d 00:00:00');
                             }
                             $join->where('invite_accounts.session_created_at', '<', $toDate);
                         }
