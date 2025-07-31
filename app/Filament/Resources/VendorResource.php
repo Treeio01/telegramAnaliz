@@ -209,13 +209,16 @@ class VendorResource extends Resource
                     ->query(function (Builder $query, array $data) {
                         if (!empty($data['min_accounts'])) {
                             $min = (int) $data['min_accounts'];
-                            // Обрати внимание: having, а не where!
-                            return $query->having('accounts_count', '>=', $min);
+                            return $query->whereExists(function ($sub) use ($min) {
+                                $sub->selectRaw(1)
+                                    ->from('accounts')
+                                    ->whereColumn('accounts.vendor_id', 'vendors.id')
+                                    ->groupBy('accounts.vendor_id')
+                                    ->havingRaw('COUNT(*) >= ?', [$min]);
+                            });
                         }
                         return $query;
                     }),
-
-
 
                 Filter::make('survival_rate')
                     ->form([
@@ -325,36 +328,26 @@ class VendorResource extends Resource
                         return $query;
                     }),
 
-                    Filter::make('session_created_at_range')
+                Filter::make('session_created_at_range')
                     ->form([
-                        \Filament\Forms\Components\DatePicker::make('session_created_from')->label('Сессия от'),
-                        \Filament\Forms\Components\DatePicker::make('session_created_to')->label('Сессия до'),
+                        \Filament\Forms\Components\DatePicker::make('session_created_from')
+                            ->label('Сессия от'),
+                        \Filament\Forms\Components\DatePicker::make('session_created_to')
+                            ->label('Сессия до'),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        $from = $data['session_created_from'] ?? null;
-                        $to = $data['session_created_to'] ?? null;
-                
-                        if ($from || $to) {
-                            $query->whereHas('accounts', function ($q) use ($from, $to) {
-                                if ($from) {
-                                    // Всегда с начала дня
-                                    if (strlen($from) == 10) {
-                                        $from .= ' 00:00:00';
-                                    }
-                                    $q->where('session_created_at', '>=', $from);
+                        if (!empty($data['session_created_from']) || !empty($data['session_created_to'])) {
+                            $query->whereHas('accounts', function ($q) use ($data) {
+                                if (!empty($data['session_created_from'])) {
+                                    $q->whereDate('session_created_at', '>=', $data['session_created_from']);
                                 }
-                                if ($to) {
-                                    // До следующего дня (НЕ включая этот день полностью)
-                                    if (strlen($to) == 10) {
-                                        $to = \Carbon\Carbon::parse($to)->addDay()->format('Y-m-d 00:00:00');
-                                    }
-                                    $q->where('session_created_at', '<', $to);
+                                if (!empty($data['session_created_to'])) {
+                                    $q->whereDate('session_created_at', '<=', $data['session_created_to']);
                                 }
                             });
                         }
                         return $query;
                     }),
-                
             ]);
     }
     public static function form(Forms\Form $form): Forms\Form

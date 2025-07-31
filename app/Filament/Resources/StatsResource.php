@@ -56,64 +56,63 @@ class StatsResource extends Resource
                 TextColumn::make('survival_percent')
                     ->label('Процент выживаемости')
                     ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
-                    ->color(function (Vendor $record) {
-                        $total = $record->accounts_count ?? 0;
-                        if ($total === 0) return 'gray';
-
-                        $valid = $record->valid_accounts_count ?? 0;
-                        $percent = $total > 0 ? round(($valid / $total) * 100, 2) : 0;
-
-                        return \App\Models\Settings::getColorForValue('survival_rate', $percent) ?? 'gray';
-                    })
                     ->state(function (Vendor $record) {
                         $dateFrom = session('tableFilters.stats.date_from');
                         $dateTo = session('tableFilters.stats.date_to');
-
                         $accountsQuery = $record->accounts();
-                        if ($dateFrom || $dateTo) {
-                            if ($dateFrom) {
-                                $accountsQuery->whereDate('session_created_at', '>=', $dateFrom);
-                            }
-                            if ($dateTo) {
-                                $accountsQuery->whereDate('session_created_at', '<=', $dateTo);
-                            }
+                        if ($dateFrom) {
+                            if (strlen($dateFrom) == 10) $dateFrom .= ' 00:00:00';
+                            $accountsQuery->where('session_created_at', '>=', $dateFrom);
                         }
-
+                        if ($dateTo) {
+                            if (strlen($dateTo) == 10) $dateTo = \Carbon\Carbon::parse($dateTo)->addDay()->format('Y-m-d 00:00:00');
+                            $accountsQuery->where('session_created_at', '<', $dateTo);
+                        }
+                
                         $total = $accountsQuery->count();
                         if ($total === 0) return 0;
-
-                        $valid = $accountsQuery->where('type', 'valid')->count();
+                
+                        $valid = (clone $accountsQuery)->where('type', 'valid')->count();
                         return round(($valid / $total) * 100, 2);
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query
-                            ->withCount(['accounts'])
-                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
-                                $q->where('type', 'valid');
-                            }])
-                            ->orderByRaw(
-                                "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
-                            );
-                    }),
+                    }) ->sortable(
+                        query: function (Builder $query, string $direction): Builder {
+                            // Тут сортировка по тем же withCount полям, что и раньше (без учета фильтров по дате!)
+                            return $query
+                                ->withCount(['accounts'])
+                                ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
+                                    $q->where('type', 'valid');
+                                }])
+                                ->orderByRaw(
+                                    "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
+                                );
+                        }
+                    ),
+                
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
                     ->sortable(),
 
-                TextColumn::make('survival_spent')
+                    TextColumn::make('survival_spent')
                     ->label('Потрачено')
                     ->money('RUB')
                     ->state(function (Vendor $record) {
-                        // Вычисляем среднюю цену аккаунта
-                        $totalAccounts = $record->accounts_count ?? 0;
-                        $totalPrice = $record->accounts()->sum('price');
-
-                        // Если есть аккаунты, считаем среднюю цену, иначе 0
+                        $dateFrom = session('tableFilters.stats.date_from');
+                        $dateTo = session('tableFilters.stats.date_to');
+                        $accountsQuery = $record->accounts();
+                        if ($dateFrom) {
+                            if (strlen($dateFrom) == 10) $dateFrom .= ' 00:00:00';
+                            $accountsQuery->where('session_created_at', '>=', $dateFrom);
+                        }
+                        if ($dateTo) {
+                            if (strlen($dateTo) == 10) $dateTo = \Carbon\Carbon::parse($dateTo)->addDay()->format('Y-m-d 00:00:00');
+                            $accountsQuery->where('session_created_at', '<', $dateTo);
+                        }
+                        $totalAccounts = $accountsQuery->count();
+                        $totalPrice = (clone $accountsQuery)->sum('price');
                         $avgPrice = $totalAccounts > 0 ? ($totalPrice / $totalAccounts) : 0;
-
-                        // Формула: акки * цена
                         return (float)$totalAccounts * (float)$avgPrice;
-                    })
+                    })                
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query
                             ->withCount('accounts')
