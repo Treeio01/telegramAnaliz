@@ -105,7 +105,7 @@ class VendorResource extends Resource
                     ->label('Продавец')
                     ->searchable()
                     ->sortable()
-                    ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),,
+                    ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
                 TextColumn::make('accounts_count')
                     ->label('Всего аккаунтов')
                     ->sortable(query: fn(Builder $query, $direction) => $query->orderBy('accounts_count', $direction)),
