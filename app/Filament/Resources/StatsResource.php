@@ -27,32 +27,50 @@ class StatsResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
-        ->modifyQueryUsing(function (Builder $query, $livewire) {
-            $filters = $livewire->tableFilters;
-            $dateFrom = $filters['date']['date_from'] ?? null;
-            $dateTo   = $filters['date']['date_to'] ?? null;
+            ->modifyQueryUsing(function (Builder $query, $livewire) {
+                $filters  = $livewire->tableFilters;
+                $dateFrom = $filters['date']['date_from'] ?? null;
+                $dateTo   = $filters['date']['date_to'] ?? null;
 
-            $query
-                ->withCount([
-                    'accounts as accounts_count' => function (Builder $q) use ($dateFrom, $dateTo) {
+                // survival counts
+                $query
+                    ->withCount([
+                        'accounts as accounts_count' => function ($q) use ($dateFrom, $dateTo) {
+                            if ($dateFrom) $q->where('session_created_at', '>=', $dateFrom);
+                            if ($dateTo)   $q->where('session_created_at', '<=', $dateTo);
+                        },
+                        'accounts as valid_accounts_count' => function ($q) use ($dateFrom, $dateTo) {
+                            $q->where('type', 'valid');
+                            if ($dateFrom) $q->where('session_created_at', '>=', $dateFrom);
+                            if ($dateTo)   $q->where('session_created_at', '<=', $dateTo);
+                        },
+                    ])
+                    ->withSum(['accounts as accounts_sum_price' => function ($q) use ($dateFrom, $dateTo) {
                         if ($dateFrom) $q->where('session_created_at', '>=', $dateFrom);
                         if ($dateTo)   $q->where('session_created_at', '<=', $dateTo);
-                    },
-                    'accounts as valid_accounts_count' => function (Builder $q) use ($dateFrom, $dateTo) {
-                        $q->where('type', 'valid');
-                        if ($dateFrom) $q->where('session_created_at', '>=', $dateFrom);
-                        if ($dateTo)   $q->where('session_created_at', '<=', $dateTo);
-                    },
-                ])
-                ->withSum(['accounts as accounts_sum_price' => function (Builder $q) use ($dateFrom, $dateTo) {
-                    if ($dateFrom) $q->where('session_created_at', '>=', $dateFrom);
-                    if ($dateTo)   $q->where('session_created_at', '<=', $dateTo);
-                }], 'price');
-        })
+                    }], 'price');
 
-
-
-
+                // invites counts
+                $query->addSelect([
+                    'invites_accounts_count' => \App\Models\InviteVendor::selectRaw('COUNT(ia.id)')
+                        ->from('invite_vendors as iv')
+                        ->join('invite_accounts as ia', 'ia.invite_vendor_id', '=', 'iv.id')
+                        ->whereColumn('iv.name', 'vendors.name'),
+                    'total_invites' => \App\Models\InviteVendor::selectRaw('COALESCE(SUM(ia.stats_invites_count),0)')
+                        ->from('invite_vendors as iv')
+                        ->join('invite_accounts as ia', 'ia.invite_vendor_id', '=', 'iv.id')
+                        ->whereColumn('iv.name', 'vendors.name'),
+                    'invites_spent' => \App\Models\InviteVendor::selectRaw('COALESCE(SUM(ia.price),0)')
+                        ->from('invite_vendors as iv')
+                        ->join('invite_accounts as ia', 'ia.invite_vendor_id', '=', 'iv.id')
+                        ->whereColumn('iv.name', 'vendors.name'),
+                    'valid_invites' => \App\Models\InviteVendor::selectRaw('COALESCE(SUM(ia.stats_invites_count),0)')
+                        ->from('invite_vendors as iv')
+                        ->join('invite_accounts as ia', 'ia.invite_vendor_id', '=', 'iv.id')
+                        ->whereColumn('iv.name', 'vendors.name')
+                        ->where('ia.type', 'valid'),
+                ]);
+            })
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
@@ -68,139 +86,77 @@ class StatsResource extends Resource
                     ->sortable()
                     ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
 
-                    TextColumn::make('survival_percent')
-    ->label('Процент выживаемости')
-    ->state(fn(Vendor $record) =>
-        $record->accounts_count > 0
-            ? round(($record->valid_accounts_count / $record->accounts_count) * 100, 2)
-            : 0
-    )
-    ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
-    ->sortable(query: fn(Builder $query, string $direction) =>
-        $query->orderByRaw(
-            "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END {$direction}"
-        )
-        ),
+                TextColumn::make('survival_percent')
+                    ->label('Процент выживаемости')
+                    ->state(fn(Vendor $record) =>
+                        $record->accounts_count > 0
+                            ? round(($record->valid_accounts_count / $record->accounts_count) * 100, 2)
+                            : 0
+                    )
+                    ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
+                    ->sortable(query: fn($q, $dir) =>
+                        $q->orderByRaw("CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END {$dir}")
+                    ),
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
                     ->sortable(),
 
-                    TextColumn::make('survival_spent')
+                TextColumn::make('survival_spent')
                     ->label('Потрачено')
                     ->money('RUB')
                     ->state(fn(Vendor $record) => (float)($record->accounts_sum_price ?? 0))
-                    ->sortable(query: fn(Builder $query, string $direction) =>
-                        $query->orderBy('accounts_sum_price', $direction)
-    ),
+                    ->sortable(query: fn($q, $dir) => $q->orderBy('accounts_sum_price', $dir)),
 
-    TextColumn::make('survival_earned')
-    ->label('Заработано')
-    ->money('RUB')
-    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
-    ->state(function (Vendor $record, $livewire) {
-        $soldPrice = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
-        return ($record->valid_accounts_count ?? 0) * $soldPrice;
-    })
-    ->sortable(query: fn(Builder $query, string $direction) =>
-        $query->orderBy('valid_accounts_count', $direction)
-),
-
-                TextColumn::make('avg_invite_price')
-                    ->label('Средняя цена инвайта')
-                    ->money('RUB')
-                    ->state(function (Vendor $record, $livewire) {
-                        $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
-                        if (!$inviteVendor) return 0;
-
-                        $geoFilters = $livewire->tableFilters['geo']['geo'] ?? [];
-                        $params = [$inviteVendor->id];
-                        $geoCondition = '';
-
-                        if (!empty($geoFilters)) {
-                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND geo IN ($placeholders)";
-                            $params = array_merge($params, $geoFilters);
-                        }
-
-                        $result = DB::select("
-                            SELECT
-                                CASE
-                                    WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) /
-                                         (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
-                                END as avg_price
-                            FROM
-                                invite_accounts
-                            WHERE
-                                invite_vendor_id = ?
-                                $geoCondition
-                        ", $params);
-
-                        return round($result[0]->avg_price ?? 0, 2);
-                    }),
-
-                TextColumn::make('invites_accounts_count')
-                    ->label('Кол-во акков')
-                    ->state(fn(Vendor $record) =>
-                        optional(\App\Models\InviteVendor::where('name', $record->name)->first())
-                            ?->inviteAccounts()->count() ?? 0
-                    ),
-
-                TextColumn::make('total_invites')
-                    ->label('Сумма инвайтов')
-                    ->state(fn(Vendor $record) =>
-                        optional(\App\Models\InviteVendor::where('name', $record->name)->first())
-                            ?->inviteAccounts()->sum('stats_invites_count') ?? 0
-                    ),
-
-                TextColumn::make('invites_spent')
-                    ->label('Потрачено')
-                    ->money('RUB')
-                    ->state(fn(Vendor $record) =>
-                        optional(\App\Models\InviteVendor::where('name', $record->name)->first())
-                            ?->inviteAccounts()->sum('price') ?? 0
-                    ),
-
-                TextColumn::make('invites_earned')
+                TextColumn::make('survival_earned')
                     ->label('Заработано')
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record, $livewire) {
-                        $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
-                        if (!$inviteVendor) return 0;
+                        $soldPrice = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
+                        return ($record->valid_accounts_count ?? 0) * $soldPrice;
+                    })
+                    ->sortable(query: fn($q, $dir) => $q->orderBy('valid_accounts_count', $dir)),
 
-                        $filters = $livewire->tableFilters;
-                        $soldPrice = (float)($filters['sold_price']['invite_sold_price'] ?? 0);
+                TextColumn::make('invites_accounts_count')
+                    ->label('Кол-во инвайт-акков')
+                    ->state(fn($r) => $r->invites_accounts_count ?? 0)
+                    ->sortable(),
 
-                        $totalInvites = $inviteVendor->inviteAccounts()
-                            ->where('type', 'valid')
-                            ->sum('stats_invites_count');
+                TextColumn::make('total_invites')
+                    ->label('Сумма инвайтов')
+                    ->state(fn($r) => $r->total_invites ?? 0)
+                    ->sortable(),
 
-                        return $totalInvites * $soldPrice;
-                    }),
+                TextColumn::make('invites_spent')
+                    ->label('Потрачено на инвайты')
+                    ->money('RUB')
+                    ->state(fn($r) => $r->invites_spent ?? 0)
+                    ->sortable(),
+
+                TextColumn::make('invites_earned')
+                    ->label('Заработано на инвайтах')
+                    ->money('RUB')
+                    ->color(fn($s) => $s >= 0 ? 'success' : 'danger')
+                    ->state(function (Vendor $record, $livewire) {
+                        $price = (float)($livewire->tableFilters['sold_price']['invite_sold_price'] ?? 0);
+                        return ($record->valid_invites ?? 0) * $price;
+                    })
+                    ->sortable(query: fn($q, $dir) => $q->orderBy('valid_invites', $dir)),
 
                 TextColumn::make('total_profit')
                     ->label('Итог')
                     ->money('RUB')
-                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
+                    ->color(fn($s) => $s >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record, $livewire) {
-                        $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
-                        $filters = $livewire->tableFilters;
+                        $sPrice = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
+                        $iPrice = (float)($livewire->tableFilters['sold_price']['invite_sold_price'] ?? 0);
 
-                        $survivalSpent = $record->accounts()->sum('price');
-                        $inviteSpent   = $inviteVendor ? $inviteVendor->inviteAccounts()->sum('price') : 0;
+                        $survivalEarned = ($record->valid_accounts_count ?? 0) * $sPrice;
+                        $inviteEarned   = ($record->valid_invites ?? 0) * $iPrice;
+                        $spent          = (float)($record->accounts_sum_price ?? 0) + (float)($record->invites_spent ?? 0);
 
-                        $survivalSoldPrice = (float)($filters['sold_price']['survival_sold_price'] ?? 0);
-                        $validAccounts     = $record->accounts()->where('type', 'valid')->count();
-                        $survivalEarned    = $validAccounts * $survivalSoldPrice;
-
-                        $inviteSoldPrice = (float)($filters['sold_price']['invite_sold_price'] ?? 0);
-                        $inviteEarned    = $inviteVendor
-                            ? $inviteVendor->inviteAccounts()->where('type', 'valid')->sum('stats_invites_count') * $inviteSoldPrice
-                            : 0;
-
-                        return ($survivalEarned + $inviteEarned) - ($survivalSpent + $inviteSpent);
+                        return ($survivalEarned + $inviteEarned) - $spent;
                     }),
             ])
             ->filters([
@@ -228,10 +184,10 @@ class StatsResource extends Resource
                                     ->toArray()
                             )
                     ])
-                    ->query(fn (Builder $query, array $data) =>
-                        !empty($data['geo'])
-                            ? $query->whereHas('accounts', fn($q) => $q->whereIn('geo', $data['geo']))
-                            : $query
+                    ->query(fn(Builder $q, array $d) =>
+                        !empty($d['geo'])
+                            ? $q->whereHas('accounts', fn($qq) => $qq->whereIn('geo', $d['geo']))
+                            : $q
                     ),
 
                 Filter::make('date')
@@ -239,14 +195,14 @@ class StatsResource extends Resource
                         Forms\Components\DatePicker::make('date_from')->label('От'),
                         Forms\Components\DatePicker::make('date_to')->label('До'),
                     ])
-                    ->query(function (Builder $query, array $data) {
-                        if ($data['date_from'] ?? null) {
-                            $query->whereHas('accounts', fn($q) => $q->whereDate('session_created_at', '>=', $data['date_from']));
+                    ->query(function (Builder $q, array $d) {
+                        if ($d['date_from'] ?? null) {
+                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '>=', $d['date_from']));
                         }
-                        if ($data['date_to'] ?? null) {
-                            $query->whereHas('accounts', fn($q) => $q->whereDate('session_created_at', '<=', $data['date_to']));
+                        if ($d['date_to'] ?? null) {
+                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '<=', $d['date_to']));
                         }
-                        return $query;
+                        return $q;
                     }),
 
                 Filter::make('sold_price')
@@ -258,9 +214,9 @@ class StatsResource extends Resource
                         TextInput::make('invite_sold_price')
                             ->label('Цена продажи для инвайтов')
                             ->numeric()
-                            ->live()
+                            ->live(),
                     ])
-                    ->query(fn (Builder $query, array $data) => $query),
+                    ->query(fn($q, $d) => $q),
             ])
             ->persistFiltersInSession();
     }
