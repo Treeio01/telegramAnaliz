@@ -115,13 +115,14 @@ class InviteResource extends Resource
                         return $query->orderBy('zero_accounts', $direction);
                     }),
 
-                TextColumn::make('percent_worked')
+                    TextColumn::make('percent_worked')
                     ->label('% рабочих')
                     ->state(fn(InviteVendor $record) => is_null($record->percent_worked) ? 0 : round($record->percent_worked, 2))
-                    ->color(fn($state) => \App\Models\Settings::getColorForValue('percent_worked', $state))
+                    ->color(fn($state) => \App\Models\Settings::getColorForValue('percent_worked', (float) $state))
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('percent_worked', $direction);
                     }),
+
 
                 TextColumn::make('avg_price_per_invite')
                     ->label('Средняя цена инвайта')
