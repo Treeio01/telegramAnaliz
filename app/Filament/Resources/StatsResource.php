@@ -42,11 +42,12 @@ class StatsResource extends Resource
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
-                    ->state('📋')  // Эмодзи буфера обмена
+                    ->state('📋')
                     ->copyable()
                     ->copyableState(fn(Vendor $record): string => $record->name)
                     ->copyMessage('Скопировано')
                     ->copyMessageDuration(2000),
+
                 TextColumn::make('name')
                     ->label('Продавец')
                     ->searchable()
@@ -56,18 +57,17 @@ class StatsResource extends Resource
                 TextColumn::make('survival_percent')
                     ->label('Процент выживаемости')
                     ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
-                    ->state(function (Vendor $record) {
-                        $dateFrom = $this->tableFilters['date']['date_from'] ?? null;
-                        $dateTo   = $this->tableFilters['date']['date_to'] ?? null;
+                    ->state(function (Vendor $record, $livewire) {
+                        $filters = $livewire->tableFilters;
+                        $dateFrom = $filters['date']['date_from'] ?? null;
+                        $dateTo   = $filters['date']['date_to'] ?? null;
 
                         $accountsQuery = $record->accounts();
                         if ($dateFrom) {
-                            if (strlen($dateFrom) == 10) $dateFrom .= ' 00:00:00';
                             $accountsQuery->where('session_created_at', '>=', $dateFrom);
                         }
                         if ($dateTo) {
-                            if (strlen($dateTo) == 10) $dateTo = \Carbon\Carbon::parse($dateTo)->addDay()->format('Y-m-d 00:00:00');
-                            $accountsQuery->where('session_created_at', '<', $dateTo);
+                            $accountsQuery->where('session_created_at', '<=', $dateTo);
                         }
 
                         $total = $accountsQuery->count();
@@ -75,43 +75,40 @@ class StatsResource extends Resource
 
                         $valid = (clone $accountsQuery)->where('type', 'valid')->count();
                         return round(($valid / $total) * 100, 2);
-                    }) ->sortable(
-                        query: function (Builder $query, string $direction): Builder {
-                            // Тут сортировка по тем же withCount полям, что и раньше (без учета фильтров по дате!)
-                            return $query
-                                ->withCount(['accounts'])
-                                ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
-                                    $q->where('type', 'valid');
-                                }])
-                                ->orderByRaw(
-                                    "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
-                                );
-                        }
-                    ),
-
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query
+                            ->withCount('accounts')
+                            ->withCount(['accounts as valid_accounts_count' => fn($q) => $q->where('type', 'valid')])
+                            ->orderByRaw(
+                                "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
+                            );
+                    }),
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
                     ->sortable(),
 
-                    TextColumn::make('survival_spent')
+                TextColumn::make('survival_spent')
                     ->label('Потрачено')
                     ->money('RUB')
-                    ->state(function (Vendor $record) {
-                        $dateFrom = session('tableFilters.stats.date_from');
-                        $dateTo = session('tableFilters.stats.date_to');
+                    ->state(function (Vendor $record, $livewire) {
+                        $filters = $livewire->tableFilters;
+                        $dateFrom = $filters['date']['date_from'] ?? null;
+                        $dateTo   = $filters['date']['date_to'] ?? null;
+
                         $accountsQuery = $record->accounts();
                         if ($dateFrom) {
-                            if (strlen($dateFrom) == 10) $dateFrom .= ' 00:00:00';
                             $accountsQuery->where('session_created_at', '>=', $dateFrom);
                         }
                         if ($dateTo) {
-                            if (strlen($dateTo) == 10) $dateTo = \Carbon\Carbon::parse($dateTo)->addDay()->format('Y-m-d 00:00:00');
-                            $accountsQuery->where('session_created_at', '<', $dateTo);
+                            $accountsQuery->where('session_created_at', '<=', $dateTo);
                         }
+
                         $totalAccounts = $accountsQuery->count();
                         $totalPrice = (clone $accountsQuery)->sum('price');
                         $avgPrice = $totalAccounts > 0 ? ($totalPrice / $totalAccounts) : 0;
+
                         return (float)$totalAccounts * (float)$avgPrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
@@ -125,44 +122,37 @@ class StatsResource extends Resource
                     ->label('Заработано')
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
-                    ->state(function (Vendor $record) {
-                        $soldPrice = (float)session('tableFilters.stats.sold_price.survival_sold_price', 0);
+                    ->state(function (Vendor $record, $livewire) {
+                        $filters = $livewire->tableFilters;
+                        $soldPrice = (float)($filters['sold_price']['survival_sold_price'] ?? 0);
                         $totalAccounts = $record->accounts_count ?? 0;
+                        $validAccounts = $record->valid_accounts_count ?? 0;
 
-                        // Вычисляем процент выживаемости
-                        $survivalPercent = 0;
-                        if ($totalAccounts > 0) {
-                            $validAccounts = $record->valid_accounts_count ?? 0;
-                            $survivalPercent = $validAccounts / $totalAccounts;
-                        }
+                        $survivalPercent = $totalAccounts > 0
+                            ? $validAccounts / $totalAccounts
+                            : 0;
 
-                        // Формула: акки * выжило процент * цена продажи
-                        return (float)$totalAccounts * (float)$survivalPercent * (float)$soldPrice;
+                        return $totalAccounts * $survivalPercent * $soldPrice;
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = (float)session('tableFilters.stats.sold_price.survival_sold_price', 0);
                         return $query
                             ->withCount('accounts')
-                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
-                                $q->where('type', 'valid');
-                            }])
-                            ->orderByRaw("CASE WHEN accounts_count = 0 THEN 0 ELSE accounts_count * (valid_accounts_count / accounts_count) * ? END {$direction}", [$soldPrice]);
+                            ->withCount(['accounts as valid_accounts_count' => fn($q) => $q->where('type', 'valid')])
+                            ->orderByRaw("CASE WHEN accounts_count = 0 THEN 0 ELSE accounts_count * (valid_accounts_count / accounts_count) END {$direction}");
                     }),
 
                 TextColumn::make('avg_invite_price')
                     ->label('Средняя цена инвайта')
                     ->money('RUB')
-                    ->state(function (Vendor $record) {
+                    ->state(function (Vendor $record, $livewire) {
                         $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
                         if (!$inviteVendor) return 0;
 
-                        $geoFilters = request('tableFilters.geo.geo', []);
-                        $hasGeoFilter = !empty($geoFilters);
-
-                        $geoCondition = '';
+                        $geoFilters = $livewire->tableFilters['geo']['geo'] ?? [];
                         $params = [$inviteVendor->id];
+                        $geoCondition = '';
 
-                        if ($hasGeoFilter) {
+                        if (!empty($geoFilters)) {
                             $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
                             $geoCondition = "AND geo IN ($placeholders)";
                             $params = array_merge($params, $geoFilters);
@@ -183,251 +173,69 @@ class StatsResource extends Resource
                         ", $params);
 
                         return round($result[0]->avg_price ?? 0, 2);
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $geoFilters = request('tableFilters.geo.geo', []);
-                        $geoCondition = '';
-                        $params = [];
-
-                        if (!empty($geoFilters)) {
-                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND geo IN ($placeholders)";
-                            $params = $geoFilters;
-                        }
-
-                        return $query
-                            ->orderByRaw("(
-                                SELECT
-                                    CASE
-                                        WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) /
-                                             (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
-                                    END
-                                FROM
-                                    invite_accounts iv
-                                    JOIN invite_vendors ivv ON iv.invite_vendor_id = ivv.id
-                                WHERE
-                                    ivv.name = vendors.name
-                                    $geoCondition
-                            ) $direction", $params);
                     }),
 
                 TextColumn::make('invites_accounts_count')
                     ->label('Кол-во акков')
-                    ->state(function (Vendor $record) {
-                        // Находим соответствующего InviteVendor с таким же именем
-                        $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
-                        if (!$inviteVendor) return 0;
-
-                        return $inviteVendor->inviteAccounts()->count();
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw("(
-                            SELECT COUNT(*)
-                            FROM invite_accounts ia
-                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
-                            WHERE iv.name = vendors.name
-                        ) {$direction}");
-                    }),
+                    ->state(fn(Vendor $record) =>
+                        optional(\App\Models\InviteVendor::where('name', $record->name)->first())
+                            ?->inviteAccounts()->count() ?? 0
+                    ),
 
                 TextColumn::make('total_invites')
                     ->label('Сумма инвайтов')
-                    ->state(function (Vendor $record) {
-                        $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
-                        if (!$inviteVendor) return 0;
-
-                        return $inviteVendor->inviteAccounts()->sum('stats_invites_count');
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query->orderByRaw("(
-                            SELECT COALESCE(SUM(stats_invites_count), 0)
-                            FROM invite_accounts ia
-                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
-                            WHERE iv.name = vendors.name
-                        ) {$direction}");
-                    }),
+                    ->state(fn(Vendor $record) =>
+                        optional(\App\Models\InviteVendor::where('name', $record->name)->first())
+                            ?->inviteAccounts()->sum('stats_invites_count') ?? 0
+                    ),
 
                 TextColumn::make('invites_spent')
                     ->label('Потрачено')
                     ->money('RUB')
-                    ->state(function (Vendor $record) {
-                        $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
-                        if (!$inviteVendor) return 0;
+                    ->state(fn(Vendor $record) =>
+                        optional(\App\Models\InviteVendor::where('name', $record->name)->first())
+                            ?->inviteAccounts()->sum('price') ?? 0
+                    ),
 
-                        // Потрачено на все аккаунты
-                        return $inviteVendor->inviteAccounts()->sum('price');
-                    })
-
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $geoFilters = request('tableFilters.geo.geo', []);
-                        $geoCondition = '';
-                        $geoParams = [];
-
-                        if (!empty($geoFilters)) {
-                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND ia.geo IN ($placeholders)";
-                            $geoParams = $geoFilters;
-                        }
-
-                        return $query->orderByRaw("(
-                            SELECT
-                                CASE
-                                    WHEN COUNT(ia.id) = 0 THEN 0
-                                    ELSE COUNT(ia.id) *
-                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
-                                         (
-                                            SELECT
-                                                CASE
-                                                    WHEN COUNT(ia2.id) = 0 OR AVG(ia2.stats_invites_count) = 0 THEN 0
-                                                    ELSE CAST(SUM(ia2.price) AS DECIMAL(10,2)) /
-                                                         (CAST(AVG(ia2.stats_invites_count) AS DECIMAL(10,2)) * COUNT(ia2.id))
-                                                END
-                                            FROM invite_accounts ia2
-                                            WHERE ia2.invite_vendor_id = iv.id
-                                            $geoCondition
-                                         )
-                                END
-                            FROM invite_accounts ia
-                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
-                            WHERE iv.name = vendors.name
-                        ) {$direction}", $geoParams);
-                    }),
-
-                // Исправленная колонка invites_earned
                 TextColumn::make('invites_earned')
                     ->label('Заработано')
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
-                    ->state(function (Vendor $record) {
+                    ->state(function (Vendor $record, $livewire) {
                         $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
                         if (!$inviteVendor) return 0;
 
-                        $soldPrice = (float)(request('tableFilters.sold_price.invite_sold_price') ?? session('tableFilters.stats.sold_price.invite_sold_price', 0));
+                        $filters = $livewire->tableFilters;
+                        $soldPrice = (float)($filters['sold_price']['invite_sold_price'] ?? 0);
 
-                        // Правильно: считаем сумму инвайтов только по выжившим аккаунтам (type = 'valid')
-                        $totalInvites = $inviteVendor->inviteAccounts()->where('type', 'valid')->sum('stats_invites_count');
+                        $totalInvites = $inviteVendor->inviteAccounts()
+                            ->where('type', 'valid')
+                            ->sum('stats_invites_count');
 
                         return $totalInvites * $soldPrice;
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        $soldPrice = (float)(request('tableFilters.sold_price.invite_sold_price') ?? session('tableFilters.stats.sold_price.invite_sold_price', 0));
-
-                        return $query->orderByRaw("(
-                            SELECT
-                                CASE
-                                    WHEN COUNT(ia.id) = 0 THEN 0
-                                    ELSE COUNT(ia.id) *
-                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
-                                         ?
-                                END
-                            FROM invite_accounts ia
-                            JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
-                            WHERE iv.name = vendors.name
-                        ) {$direction}", [$soldPrice]);
                     }),
 
                 TextColumn::make('total_profit')
                     ->label('Итог')
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
-                    ->state(function (Vendor $record) {
+                    ->state(function (Vendor $record, $livewire) {
                         $inviteVendor = \App\Models\InviteVendor::where('name', $record->name)->first();
+                        $filters = $livewire->tableFilters;
 
-                        // Потрачено (выживаемость)
                         $survivalSpent = $record->accounts()->sum('price');
-                        // Потрачено (инвайты)
-                        $inviteSpent = $inviteVendor ? $inviteVendor->inviteAccounts()->sum('price') : 0;
+                        $inviteSpent   = $inviteVendor ? $inviteVendor->inviteAccounts()->sum('price') : 0;
 
-                        // Заработано (выживаемость)
-                        $survivalSoldPrice = (float)(request('tableFilters.sold_price.survival_sold_price') ?? session('tableFilters.stats.sold_price.survival_sold_price', 0));
-                        $validAccounts = $record->accounts()->where('type', 'valid')->count();
-                        $survivalEarned = $validAccounts * $survivalSoldPrice;
+                        $survivalSoldPrice = (float)($filters['sold_price']['survival_sold_price'] ?? 0);
+                        $validAccounts     = $record->accounts()->where('type', 'valid')->count();
+                        $survivalEarned    = $validAccounts * $survivalSoldPrice;
 
-                        // Заработано (инвайты)
-                        $inviteSoldPrice = (float)(request('tableFilters.sold_price.invite_sold_price') ?? session('tableFilters.stats.sold_price.invite_sold_price', 0));
-                        $inviteEarned = $inviteVendor
+                        $inviteSoldPrice = (float)($filters['sold_price']['invite_sold_price'] ?? 0);
+                        $inviteEarned    = $inviteVendor
                             ? $inviteVendor->inviteAccounts()->where('type', 'valid')->sum('stats_invites_count') * $inviteSoldPrice
                             : 0;
 
-                        $totalEarned = $survivalEarned + $inviteEarned;
-                        $totalSpent = $survivalSpent + $inviteSpent;
-
-                        return $totalEarned - $totalSpent;
-                    })
-
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        // Получаем актуальные значения цен из запроса (из фильтров)
-                        $survivalSoldPrice = (float)(request('tableFilters.sold_price.survival_sold_price') ?? session('tableFilters.stats.sold_price.survival_sold_price', 0));
-                        $inviteSoldPrice = (float)(request('tableFilters.sold_price.invite_sold_price') ?? session('tableFilters.stats.sold_price.invite_sold_price', 0));
-
-                        // Получаем гео фильтры для корректного расчета средней цены инвайта
-                        $geoFilters = request('tableFilters.geo.geo', []);
-                        $geoCondition = '';
-                        $geoParams = [];
-
-                        if (!empty($geoFilters)) {
-                            $placeholders = implode(',', array_fill(0, count($geoFilters), '?'));
-                            $geoCondition = "AND ia.geo IN ($placeholders)";
-                            $geoParams = $geoFilters;
-                        }
-
-                        return $query
-                            ->withCount('accounts')
-                            ->withCount(['accounts as valid_accounts_count' => function (Builder $q) {
-                                $q->where('type', 'valid');
-                            }])
-                            ->withSum('accounts', 'price')
-                            ->orderByRaw("(
-                                /* Заработано выживаемость */
-                                (CASE
-                                    WHEN accounts_count = 0 THEN 0
-                                    ELSE accounts_count * (valid_accounts_count / accounts_count) * ?
-                                END)
-                                +
-                                /* Заработано инвайты */
-                                (
-                                    SELECT
-                                        CASE
-                                            WHEN COUNT(ia.id) = 0 THEN 0
-                                            ELSE COUNT(ia.id) *
-                                                 (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
-                                                 ?
-                                        END
-                                    FROM invite_accounts ia
-                                    JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
-                                    WHERE iv.name = vendors.name
-                                )
-                                -
-                                /* Потрачено выживаемость */
-                                (CASE
-                                    WHEN accounts_count = 0 THEN 0
-                                    ELSE accounts_count * (accounts_sum_price / accounts_count)
-                                END)
-                                -
-                                /* Потрачено инвайты */
-                                (
-                                    SELECT
-                                        CASE
-                                            WHEN COUNT(ia.id) = 0 THEN 0
-                                            ELSE COUNT(ia.id) *
-                                                 (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
-                                                 (
-                                                    SELECT
-                                                        CASE
-                                                            WHEN COUNT(ia2.id) = 0 OR AVG(ia2.stats_invites_count) = 0 THEN 0
-                                                            ELSE CAST(SUM(ia2.price) AS DECIMAL(10,2)) /
-                                                                 (CAST(AVG(ia2.stats_invites_count) AS DECIMAL(10,2)) * COUNT(ia2.id))
-                                                        END
-                                                    FROM invite_accounts ia2
-                                                    WHERE ia2.invite_vendor_id = iv.id
-                                                    $geoCondition
-                                                 )
-                                        END
-                                    FROM invite_accounts ia
-                                    JOIN invite_vendors iv ON ia.invite_vendor_id = iv.id
-                                    WHERE iv.name = vendors.name
-                                )
-                            ) {$direction}", array_merge([$survivalSoldPrice, $inviteSoldPrice], $geoParams));
+                        return ($survivalEarned + $inviteEarned) - ($survivalSpent + $inviteSpent);
                     }),
             ])
             ->filters([
@@ -455,32 +263,24 @@ class StatsResource extends Resource
                                     ->toArray()
                             )
                     ])
-                    ->query(function (Builder $query, array $data) {
-                        if (!empty($data['geo'])) {
-                            $geo = $data['geo'];
-                            $query->whereHas('accounts', function ($q) use ($geo) {
-                                $q->whereIn('geo', $geo);
-                            });
-                        }
-                        return $query;
-                    }),
+                    ->query(fn (Builder $query, array $data) =>
+                        !empty($data['geo'])
+                            ? $query->whereHas('accounts', fn($q) => $q->whereIn('geo', $data['geo']))
+                            : $query
+                    ),
 
                 Filter::make('date')
                     ->form([
-                        Forms\Components\DatePicker::make('date_from')
-                            ->label('От'),
-                        Forms\Components\DatePicker::make('date_to')
-                            ->label('До'),
+                        Forms\Components\DatePicker::make('date_from')->label('От'),
+                        Forms\Components\DatePicker::make('date_to')->label('До'),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        $query->when($data['date_from'] ?? null, fn($q, $date) =>
-                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '>=', $date))
-                        );
-
-                        $query->when($data['date_to'] ?? null, fn($q, $date) =>
-                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '<=', $date))
-                        );
-
+                        if ($data['date_from'] ?? null) {
+                            $query->whereHas('accounts', fn($q) => $q->whereDate('session_created_at', '>=', $data['date_from']));
+                        }
+                        if ($data['date_to'] ?? null) {
+                            $query->whereHas('accounts', fn($q) => $q->whereDate('session_created_at', '<=', $data['date_to']));
+                        }
                         return $query;
                     }),
 
@@ -495,12 +295,9 @@ class StatsResource extends Resource
                             ->numeric()
                             ->live()
                     ])
-                    ->query(function (Builder $query, array $data) {
-
-                        return $query;
-                    }),
+                    ->query(fn (Builder $query, array $data) => $query),
             ])
-            ->persistFiltersInSession(); // Сохраняем фильтры в сессии
+            ->persistFiltersInSession();
     }
 
     public static function getPages(): array
