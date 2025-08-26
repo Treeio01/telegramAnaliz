@@ -13,7 +13,6 @@ use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
 use App\Models\GeoPreset;
-use Illuminate\Support\Facades\DB;
 
 class StatsResource extends Resource
 {
@@ -32,7 +31,7 @@ class StatsResource extends Resource
                 $dateFrom = $filters['date']['date_from'] ?? null;
                 $dateTo   = $filters['date']['date_to'] ?? null;
 
-                // survival counts
+                // survival stats
                 $query
                     ->withCount([
                         'accounts as accounts_count' => function ($q) use ($dateFrom, $dateTo) {
@@ -50,7 +49,7 @@ class StatsResource extends Resource
                         if ($dateTo)   $q->where('session_created_at', '<=', $dateTo);
                     }], 'price');
 
-                // invites counts
+                // invite stats (подзапросы)
                 $query->addSelect([
                     'invites_accounts_count' => \App\Models\InviteVendor::selectRaw('COUNT(ia.id)')
                         ->from('invite_vendors as iv')
@@ -94,9 +93,11 @@ class StatsResource extends Resource
                             : 0
                     )
                     ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
-                    ->sortable(query: fn($q, $dir) =>
-                        $q->orderByRaw("CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END {$dir}")
-                    ),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw(
+                            "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END {$direction}"
+                        );
+                    }),
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
@@ -106,17 +107,21 @@ class StatsResource extends Resource
                     ->label('Потрачено')
                     ->money('RUB')
                     ->state(fn(Vendor $record) => (float)($record->accounts_sum_price ?? 0))
-                    ->sortable(query: fn($q, $dir) => $q->orderBy('accounts_sum_price', $dir)),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('accounts_sum_price', $direction);
+                    }),
 
                 TextColumn::make('survival_earned')
                     ->label('Заработано')
                     ->money('RUB')
-                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
+                    ->color(fn($s) => $s >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record, $livewire) {
-                        $soldPrice = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
-                        return ($record->valid_accounts_count ?? 0) * $soldPrice;
+                        $price = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
+                        return ($record->valid_accounts_count ?? 0) * $price;
                     })
-                    ->sortable(query: fn($q, $dir) => $q->orderBy('valid_accounts_count', $dir)),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('valid_accounts_count', $direction);
+                    }),
 
                 TextColumn::make('invites_accounts_count')
                     ->label('Кол-во инвайт-акков')
@@ -142,7 +147,9 @@ class StatsResource extends Resource
                         $price = (float)($livewire->tableFilters['sold_price']['invite_sold_price'] ?? 0);
                         return ($record->valid_invites ?? 0) * $price;
                     })
-                    ->sortable(query: fn($q, $dir) => $q->orderBy('valid_invites', $dir)),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('valid_invites', $direction);
+                    }),
 
                 TextColumn::make('total_profit')
                     ->label('Итог')
@@ -186,9 +193,7 @@ class StatsResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         if (!empty($data['geo'])) {
-                            $query->whereHas('accounts', function ($q) use ($data) {
-                                $q->whereIn('geo', $data['geo']);
-                            });
+                            $query->whereHas('accounts', fn($q) => $q->whereIn('geo', $data['geo']));
                         }
                         return $query;
                     }),
@@ -224,9 +229,7 @@ class StatsResource extends Resource
                             ->live(),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        // Тут просто возвращаем $query,
-                        // значения будут доступны через $livewire->tableFilters
-                        return $query;
+                        return $query; // просто для передачи значений в $livewire->tableFilters
                     }),
             ])
             ->persistFiltersInSession();
