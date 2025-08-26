@@ -27,18 +27,41 @@ class StatsResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
-            ->modifyQueryUsing(function (Builder $query) {
-                return $query
-                    ->withCount([
-                        'accounts',
-                        'accounts as valid_accounts_count' => function (Builder $q) {
-                            $q->where('type', 'valid');
-                        },
-                        'accounts as dead_accounts_count' => function (Builder $q) {
-                            $q->where('type', 'dead');
-                        },
-                    ]);
-            })
+        ->modifyQueryUsing(function (Builder $query, $livewire) {
+            $filters = $livewire->tableFilters;
+            $dateFrom = $filters['date']['date_from'] ?? null;
+            $dateTo   = $filters['date']['date_to'] ?? null;
+
+            $query->withCount([
+                'accounts as accounts_count' => function (Builder $q) use ($dateFrom, $dateTo) {
+                    if ($dateFrom) {
+                        $q->where('session_created_at', '>=', $dateFrom);
+                    }
+                    if ($dateTo) {
+                        $q->where('session_created_at', '<=', $dateTo);
+                    }
+                },
+                'accounts as valid_accounts_count' => function (Builder $q) use ($dateFrom, $dateTo) {
+                    $q->where('type', 'valid');
+                    if ($dateFrom) {
+                        $q->where('session_created_at', '>=', $dateFrom);
+                    }
+                    if ($dateTo) {
+                        $q->where('session_created_at', '<=', $dateTo);
+                    }
+                },
+                'accounts as dead_accounts_count' => function (Builder $q) use ($dateFrom, $dateTo) {
+                    $q->where('type', 'dead');
+                    if ($dateFrom) {
+                        $q->where('session_created_at', '>=', $dateFrom);
+                    }
+                    if ($dateTo) {
+                        $q->where('session_created_at', '<=', $dateTo);
+                    }
+                },
+            ]);
+        })
+
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
@@ -54,36 +77,14 @@ class StatsResource extends Resource
                     ->sortable()
                     ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
 
-                TextColumn::make('survival_percent')
+                    TextColumn::make('survival_percent')
                     ->label('Процент выживаемости')
-                    ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
-                    ->state(function (Vendor $record, $livewire) {
-                        $filters = $livewire->tableFilters;
-                        $dateFrom = $filters['date']['date_from'] ?? null;
-                        $dateTo   = $filters['date']['date_to'] ?? null;
+                    ->state(fn(Vendor $record) => $record->accounts_count > 0
+                        ? round(($record->valid_accounts_count / $record->accounts_count) * 100, 2)
+                        : 0
+                    )
+                    ->formatStateUsing(fn($state) => number_format($state, 2) . '%'),
 
-                        $accountsQuery = $record->accounts();
-                        if ($dateFrom) {
-                            $accountsQuery->where('session_created_at', '>=', $dateFrom);
-                        }
-                        if ($dateTo) {
-                            $accountsQuery->where('session_created_at', '<=', $dateTo);
-                        }
-
-                        $total = $accountsQuery->count();
-                        if ($total === 0) return 0;
-
-                        $valid = (clone $accountsQuery)->where('type', 'valid')->count();
-                        return round(($valid / $total) * 100, 2);
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query
-                            ->withCount('accounts')
-                            ->withCount(['accounts as valid_accounts_count' => fn($q) => $q->where('type', 'valid')])
-                            ->orderByRaw(
-                                "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END $direction"
-                            );
-                    }),
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
@@ -118,13 +119,14 @@ class StatsResource extends Resource
                             ->orderByRaw("CASE WHEN accounts_count = 0 THEN 0 ELSE accounts_count * (accounts_sum_price / accounts_count) END {$direction}");
                     }),
 
-                TextColumn::make('survival_earned')
+                    TextColumn::make('survival_earned')
                     ->label('Заработано')
                     ->money('RUB')
                     ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record, $livewire) {
                         $filters = $livewire->tableFilters;
                         $soldPrice = (float)($filters['sold_price']['survival_sold_price'] ?? 0);
+
                         $totalAccounts = $record->accounts_count ?? 0;
                         $validAccounts = $record->valid_accounts_count ?? 0;
 
@@ -133,12 +135,6 @@ class StatsResource extends Resource
                             : 0;
 
                         return $totalAccounts * $survivalPercent * $soldPrice;
-                    })
-                    ->sortable(query: function (Builder $query, string $direction): Builder {
-                        return $query
-                            ->withCount('accounts')
-                            ->withCount(['accounts as valid_accounts_count' => fn($q) => $q->where('type', 'valid')])
-                            ->orderByRaw("CASE WHEN accounts_count = 0 THEN 0 ELSE accounts_count * (valid_accounts_count / accounts_count) END {$direction}");
                     }),
 
                 TextColumn::make('avg_invite_price')
