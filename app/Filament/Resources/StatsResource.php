@@ -114,7 +114,7 @@ class StatsResource extends Resource
                 TextColumn::make('survival_earned')
                     ->label('Заработано')
                     ->money('RUB')
-                    ->color(fn($s) => $s >= 0 ? 'success' : 'danger')
+                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record, $livewire) {
                         $price = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
                         return ($record->valid_accounts_count ?? 0) * $price;
@@ -142,7 +142,7 @@ class StatsResource extends Resource
                 TextColumn::make('invites_earned')
                     ->label('Заработано на инвайтах')
                     ->money('RUB')
-                    ->color(fn($s) => $s >= 0 ? 'success' : 'danger')
+                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record, $livewire) {
                         $price = (float)($livewire->tableFilters['sold_price']['invite_sold_price'] ?? 0);
                         return ($record->valid_invites ?? 0) * $price;
@@ -154,7 +154,7 @@ class StatsResource extends Resource
                 TextColumn::make('total_profit')
                     ->label('Итог')
                     ->money('RUB')
-                    ->color(fn($s) => $s >= 0 ? 'success' : 'danger')
+                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
                     ->state(function (Vendor $record, $livewire) {
                         $sPrice = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
                         $iPrice = (float)($livewire->tableFilters['sold_price']['invite_sold_price'] ?? 0);
