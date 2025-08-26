@@ -30,6 +30,7 @@ class InviteResource extends Resource
     {
         return $table
             ->query(function (Builder $query, $livewire) {
+                $query = InviteVendor::query();
                 $filters = $livewire->tableFilters;
 
                 $geoFilters = $filters['geo']['geo'] ?? [];
