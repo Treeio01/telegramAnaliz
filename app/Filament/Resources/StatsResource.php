@@ -182,27 +182,34 @@ class StatsResource extends Resource
                                     ->distinct()
                                     ->pluck('geo', 'geo')
                                     ->toArray()
-                            )
+                            ),
                     ])
-                    ->query(fn(Builder $q, array $d) =>
-                        !empty($d['geo'])
-                            ? $q->whereHas('accounts', fn($qq) => $qq->whereIn('geo', $d['geo']))
-                            : $q
-                    ),
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (!empty($data['geo'])) {
+                            $query->whereHas('accounts', function ($q) use ($data) {
+                                $q->whereIn('geo', $data['geo']);
+                            });
+                        }
+                        return $query;
+                    }),
 
                 Filter::make('date')
                     ->form([
                         Forms\Components\DatePicker::make('date_from')->label('От'),
                         Forms\Components\DatePicker::make('date_to')->label('До'),
                     ])
-                    ->query(function (Builder $q, array $d) {
-                        if ($d['date_from'] ?? null) {
-                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '>=', $d['date_from']));
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (!empty($data['date_from'])) {
+                            $query->whereHas('accounts', fn($q) =>
+                                $q->whereDate('session_created_at', '>=', $data['date_from'])
+                            );
                         }
-                        if ($d['date_to'] ?? null) {
-                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '<=', $d['date_to']));
+                        if (!empty($data['date_to'])) {
+                            $query->whereHas('accounts', fn($q) =>
+                                $q->whereDate('session_created_at', '<=', $data['date_to'])
+                            );
                         }
-                        return $q;
+                        return $query;
                     }),
 
                 Filter::make('sold_price')
@@ -216,7 +223,11 @@ class StatsResource extends Resource
                             ->numeric()
                             ->live(),
                     ])
-                    ->query(fn($q, $d) => $q),
+                    ->query(function (Builder $query, array $data): Builder {
+                        // Тут просто возвращаем $query,
+                        // значения будут доступны через $livewire->tableFilters
+                        return $query;
+                    }),
             ])
             ->persistFiltersInSession();
     }
