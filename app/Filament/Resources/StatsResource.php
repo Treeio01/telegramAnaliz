@@ -123,21 +123,22 @@ class StatsResource extends Resource
                         return $query->orderBy('valid_accounts_count', $direction);
                     }),
 
-                TextColumn::make('invites_accounts_count')
+                    TextColumn::make('invites_accounts_count')
                     ->label('Кол-во инвайт-акков')
-                    ->state(fn($r) => $r->invites_accounts_count ?? 0)
+                    ->state(fn(Vendor $record) => $record->invites_accounts_count ?? 0)
                     ->sortable(),
 
                 TextColumn::make('total_invites')
                     ->label('Сумма инвайтов')
-                    ->state(fn($r) => $r->total_invites ?? 0)
+                    ->state(fn(Vendor $record) => $record->total_invites ?? 0)
                     ->sortable(),
 
                 TextColumn::make('invites_spent')
                     ->label('Потрачено на инвайты')
                     ->money('RUB')
-                    ->state(fn($r) => $r->invites_spent ?? 0)
+                    ->state(fn(Vendor $record) => $record->invites_spent ?? 0)
                     ->sortable(),
+
 
                 TextColumn::make('invites_earned')
                     ->label('Заработано на инвайтах')
