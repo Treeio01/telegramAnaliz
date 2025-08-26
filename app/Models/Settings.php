@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Settings extends Model
 {
     use HasFactory;
-    
+
     protected $fillable = [
         'column_name',
         'color_type',
@@ -16,7 +16,7 @@ class Settings extends Model
         'max_value',
         'condition_type'
     ];
-    
+
     /**
      * Проверяет, соответствует ли значение условию настройки
      *
@@ -36,7 +36,7 @@ class Settings extends Model
                 return false;
         }
     }
-    
+
     /**
      * Получить настройки цвета для определенного столбца и значения
      *
@@ -44,16 +44,17 @@ class Settings extends Model
      * @param float $value Значение для проверки
      * @return string|null Тип цвета или null, если не найдено
      */
-    public static function getColorForValue($columnName, $value)
+    public static function getColorForValue($columnName, $value): string
     {
         $settings = self::where('column_name', $columnName)->get();
-        
+
         foreach ($settings as $setting) {
             if ($setting->matchesCondition($value)) {
                 return $setting->color_type;
             }
         }
-        
-        return null;
+
+        return 'gray'; // дефолтный цвет
     }
+
 }
