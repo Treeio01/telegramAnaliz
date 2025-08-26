@@ -52,6 +52,7 @@ class StatsResource extends Resource
 
 
 
+
             ->columns([
                 TextColumn::make('copy_name')
                     ->label('')
@@ -68,42 +69,42 @@ class StatsResource extends Resource
                     ->url(fn(Vendor $record): string => route('vendor.profile', $record->id)),
 
                     TextColumn::make('survival_percent')
-                    ->label('Процент выживаемости')
-                    ->state(fn(Vendor $record) =>
-                        $record->accounts_count > 0
-                            ? round(($record->valid_accounts_count / $record->accounts_count) * 100, 2)
-                            : 0
-                    )
-                    ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
-                    ->sortable(query: fn(Builder $query, string $direction) =>
-                        $query->orderByRaw(
-                            "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END {$direction}"
-                        )
-                        ),
+    ->label('Процент выживаемости')
+    ->state(fn(Vendor $record) =>
+        $record->accounts_count > 0
+            ? round(($record->valid_accounts_count / $record->accounts_count) * 100, 2)
+            : 0
+    )
+    ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
+    ->sortable(query: fn(Builder $query, string $direction) =>
+        $query->orderByRaw(
+            "CASE WHEN accounts_count = 0 THEN 0 ELSE (valid_accounts_count * 100.0 / accounts_count) END {$direction}"
+        )
+        ),
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
                     ->sortable(),
 
                     TextColumn::make('survival_spent')
-    ->label('Потрачено')
-    ->money('RUB')
-    ->state(fn(Vendor $record) => (float)($record->accounts_sum_price ?? 0))
-    ->sortable(query: fn(Builder $query, string $direction) =>
-        $query->orderBy('accounts_sum_price', $direction)
-                    ),
-
-                    TextColumn::make('survival_earned')
-                    ->label('Заработано')
+                    ->label('Потрачено')
                     ->money('RUB')
-                    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
-                    ->state(function (Vendor $record, $livewire) {
-                        $soldPrice = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
-                        return ($record->valid_accounts_count ?? 0) * $soldPrice;
-                    })
+                    ->state(fn(Vendor $record) => (float)($record->accounts_sum_price ?? 0))
                     ->sortable(query: fn(Builder $query, string $direction) =>
-                        $query->orderBy('valid_accounts_count', $direction)
-                ),
+                        $query->orderBy('accounts_sum_price', $direction)
+    ),
+
+    TextColumn::make('survival_earned')
+    ->label('Заработано')
+    ->money('RUB')
+    ->color(fn($state) => $state >= 0 ? 'success' : 'danger')
+    ->state(function (Vendor $record, $livewire) {
+        $soldPrice = (float)($livewire->tableFilters['sold_price']['survival_sold_price'] ?? 0);
+        return ($record->valid_accounts_count ?? 0) * $soldPrice;
+    })
+    ->sortable(query: fn(Builder $query, string $direction) =>
+        $query->orderBy('valid_accounts_count', $direction)
+),
 
                 TextColumn::make('avg_invite_price')
                     ->label('Средняя цена инвайта')
