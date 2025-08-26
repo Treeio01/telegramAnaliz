@@ -6,7 +6,6 @@ use App\Filament\Resources\InviteResource\Pages;
 use App\Models\InviteAccount;
 use App\Models\InviteVendor;
 use App\Models\GeoPreset;
-use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -29,13 +28,13 @@ class InviteResource extends Resource
 
     public static function table(Tables\Table $table): Tables\Table
     {
-        $geoFilters = request('tableFilters.geo.geo', []);
-        $fromDate   = request('tableFilters.session_created_date_range.session_created_from');
-        $toDate     = request('tableFilters.session_created_date_range.session_created_to');
-
         return $table
-            ->query(function () use ($geoFilters, $fromDate, $toDate) {
-                $query = InviteVendor::query();
+            ->query(function (Builder $query, $livewire) {
+                $filters = $livewire->tableFilters;
+
+                $geoFilters = $filters['geo']['geo'] ?? [];
+                $fromDate   = $filters['session_created_date_range']['session_created_from'] ?? null;
+                $toDate     = $filters['session_created_date_range']['session_created_to'] ?? null;
 
                 $query->selectRaw('
                     invite_vendors.*,
@@ -157,19 +156,15 @@ class InviteResource extends Resource
             ->filters([
                 Filter::make('min_accounts')
                     ->form([
-                        TextInput::make('min_accounts')
-                            ->numeric()
-                            ->label('Мин. аккаунтов')
-                            ->default(0),
+                        TextInput::make('min_accounts')->numeric()->label('Мин. аккаунтов'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         if (!empty($data['min_accounts'])) {
-                            $min = (int) $data['min_accounts'];
                             $query->whereRaw('(
                                 SELECT COUNT(*)
                                 FROM invite_accounts
                                 WHERE invite_accounts.invite_vendor_id = invite_vendors.id
-                            ) >= ?', [$min]);
+                            ) >= ?', [(int)$data['min_accounts']]);
                         }
                         return $query;
                     }),
@@ -187,7 +182,7 @@ class InviteResource extends Resource
                                 END
                                 FROM invite_accounts a
                                 WHERE a.invite_vendor_id = invite_vendors.id
-                            ) >= ?', [(float) $data['percent_worked_min']]);
+                            ) >= ?', [(float)$data['percent_worked_min']]);
                         }
                         if (!empty($data['percent_worked_max'])) {
                             $query->whereRaw('(
@@ -196,7 +191,7 @@ class InviteResource extends Resource
                                 END
                                 FROM invite_accounts a
                                 WHERE a.invite_vendor_id = invite_vendors.id
-                            ) <= ?', [(float) $data['percent_worked_max']]);
+                            ) <= ?', [(float)$data['percent_worked_max']]);
                         }
                         return $query;
                     }),
@@ -225,9 +220,7 @@ class InviteResource extends Resource
                             ),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        if (!empty($data['geo'])) {
-                            $query->whereHas('inviteAccounts', fn($q) => $q->whereIn('geo', $data['geo']));
-                        }
+                        // просто возвращаем query, geo отработает в ->query() таблицы
                         return $query;
                     }),
 
@@ -237,18 +230,7 @@ class InviteResource extends Resource
                         DatePicker::make('session_created_to')->label('Сессия до'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        if (!empty($data['session_created_from'])) {
-                            $from = Carbon::parse($data['session_created_from'])->startOfDay();
-                            $query->whereHas('inviteAccounts', fn($q) =>
-                                $q->where('session_created_at', '>=', $from)
-                            );
-                        }
-                        if (!empty($data['session_created_to'])) {
-                            $to = Carbon::parse($data['session_created_to'])->endOfDay();
-                            $query->whereHas('inviteAccounts', fn($q) =>
-                                $q->where('session_created_at', '<=', $to)
-                            );
-                        }
+                        // только прокидываем, обработка в ->query()
                         return $query;
                     }),
             ])
