@@ -496,12 +496,7 @@ class StatsResource extends Resource
                             ->live()
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if (isset($data['survival_sold_price'])) {
-                            $soldPrice = $this->tableFilters['sold_price']['survival_sold_price'] ?? 0;
-                        }
-                        if (isset($data['invite_sold_price'])) {
-                            $soldPrice = $this->tableFilters['sold_price']['survival_sold_price'] ?? 0;
-                        }
+
                         return $query;
                     }),
             ])
