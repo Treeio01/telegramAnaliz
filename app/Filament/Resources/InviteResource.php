@@ -118,7 +118,7 @@ class InviteResource extends Resource
                     TextColumn::make('percent_worked')
                     ->label('% рабочих')
                     ->state(fn(InviteVendor $record) => is_null($record->percent_worked) ? 0 : round($record->percent_worked, 2))
-                    ->color(fn($state) => \App\Models\Settings::getColorForValue('percent_worked', (float) $state))
+                    ->color(fn($state) => \App\Models\Settings::getColorForValue('percent_worked', (float) $state) ?? 'gray')
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('percent_worked', $direction);
                     }),
