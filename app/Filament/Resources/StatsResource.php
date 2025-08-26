@@ -57,8 +57,9 @@ class StatsResource extends Resource
                     ->label('Процент выживаемости')
                     ->formatStateUsing(fn($state) => number_format($state, 2) . '%')
                     ->state(function (Vendor $record) {
-                        $dateFrom = session('tableFilters.stats.date_from');
-                        $dateTo = session('tableFilters.stats.date_to');
+                        $dateFrom = $this->tableFilters['date']['date_from'] ?? null;
+                        $dateTo   = $this->tableFilters['date']['date_to'] ?? null;
+
                         $accountsQuery = $record->accounts();
                         if ($dateFrom) {
                             if (strlen($dateFrom) == 10) $dateFrom .= ' 00:00:00';
@@ -68,10 +69,10 @@ class StatsResource extends Resource
                             if (strlen($dateTo) == 10) $dateTo = \Carbon\Carbon::parse($dateTo)->addDay()->format('Y-m-d 00:00:00');
                             $accountsQuery->where('session_created_at', '<', $dateTo);
                         }
-                
+
                         $total = $accountsQuery->count();
                         if ($total === 0) return 0;
-                
+
                         $valid = (clone $accountsQuery)->where('type', 'valid')->count();
                         return round(($valid / $total) * 100, 2);
                     }) ->sortable(
@@ -87,7 +88,7 @@ class StatsResource extends Resource
                                 );
                         }
                     ),
-                
+
 
                 TextColumn::make('accounts_count')
                     ->label('Кол-во акков')
@@ -112,7 +113,7 @@ class StatsResource extends Resource
                         $totalPrice = (clone $accountsQuery)->sum('price');
                         $avgPrice = $totalAccounts > 0 ? ($totalPrice / $totalAccounts) : 0;
                         return (float)$totalAccounts * (float)$avgPrice;
-                    })                
+                    })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query
                             ->withCount('accounts')
@@ -168,15 +169,15 @@ class StatsResource extends Resource
                         }
 
                         $result = DB::select("
-                            SELECT 
-                                CASE 
+                            SELECT
+                                CASE
                                     WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                    ELSE CAST(SUM(price) AS DECIMAL(10,2)) /
                                          (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
                                 END as avg_price
-                            FROM 
+                            FROM
                                 invite_accounts
-                            WHERE 
+                            WHERE
                                 invite_vendor_id = ?
                                 $geoCondition
                         ", $params);
@@ -196,16 +197,16 @@ class StatsResource extends Resource
 
                         return $query
                             ->orderByRaw("(
-                                SELECT 
-                                    CASE 
+                                SELECT
+                                    CASE
                                         WHEN COUNT(*) = 0 OR AVG(stats_invites_count) = 0 THEN 0
-                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) / 
+                                        ELSE CAST(SUM(price) AS DECIMAL(10,2)) /
                                              (CAST(AVG(stats_invites_count) AS DECIMAL(10,2)) * COUNT(*))
                                     END
-                                FROM 
+                                FROM
                                     invite_accounts iv
-                                    JOIN invite_vendors ivv ON iv.invite_vendor_id = ivv.id 
-                                WHERE 
+                                    JOIN invite_vendors ivv ON iv.invite_vendor_id = ivv.id
+                                WHERE
                                     ivv.name = vendors.name
                                     $geoCondition
                             ) $direction", $params);
@@ -269,16 +270,16 @@ class StatsResource extends Resource
                         }
 
                         return $query->orderByRaw("(
-                            SELECT 
-                                CASE 
+                            SELECT
+                                CASE
                                     WHEN COUNT(ia.id) = 0 THEN 0
-                                    ELSE COUNT(ia.id) * 
-                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) * 
+                                    ELSE COUNT(ia.id) *
+                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
                                          (
-                                            SELECT 
-                                                CASE 
+                                            SELECT
+                                                CASE
                                                     WHEN COUNT(ia2.id) = 0 OR AVG(ia2.stats_invites_count) = 0 THEN 0
-                                                    ELSE CAST(SUM(ia2.price) AS DECIMAL(10,2)) / 
+                                                    ELSE CAST(SUM(ia2.price) AS DECIMAL(10,2)) /
                                                          (CAST(AVG(ia2.stats_invites_count) AS DECIMAL(10,2)) * COUNT(ia2.id))
                                                 END
                                             FROM invite_accounts ia2
@@ -312,11 +313,11 @@ class StatsResource extends Resource
                         $soldPrice = (float)(request('tableFilters.sold_price.invite_sold_price') ?? session('tableFilters.stats.sold_price.invite_sold_price', 0));
 
                         return $query->orderByRaw("(
-                            SELECT 
-                                CASE 
+                            SELECT
+                                CASE
                                     WHEN COUNT(ia.id) = 0 THEN 0
-                                    ELSE COUNT(ia.id) * 
-                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) * 
+                                    ELSE COUNT(ia.id) *
+                                         (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
                                          ?
                                 END
                             FROM invite_accounts ia
@@ -378,18 +379,18 @@ class StatsResource extends Resource
                             ->withSum('accounts', 'price')
                             ->orderByRaw("(
                                 /* Заработано выживаемость */
-                                (CASE 
-                                    WHEN accounts_count = 0 THEN 0 
-                                    ELSE accounts_count * (valid_accounts_count / accounts_count) * ? 
+                                (CASE
+                                    WHEN accounts_count = 0 THEN 0
+                                    ELSE accounts_count * (valid_accounts_count / accounts_count) * ?
                                 END)
                                 +
                                 /* Заработано инвайты */
                                 (
-                                    SELECT 
-                                        CASE 
+                                    SELECT
+                                        CASE
                                             WHEN COUNT(ia.id) = 0 THEN 0
-                                            ELSE COUNT(ia.id) * 
-                                                 (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) * 
+                                            ELSE COUNT(ia.id) *
+                                                 (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
                                                  ?
                                         END
                                     FROM invite_accounts ia
@@ -398,23 +399,23 @@ class StatsResource extends Resource
                                 )
                                 -
                                 /* Потрачено выживаемость */
-                                (CASE 
-                                    WHEN accounts_count = 0 THEN 0 
-                                    ELSE accounts_count * (accounts_sum_price / accounts_count) 
+                                (CASE
+                                    WHEN accounts_count = 0 THEN 0
+                                    ELSE accounts_count * (accounts_sum_price / accounts_count)
                                 END)
                                 -
                                 /* Потрачено инвайты */
                                 (
-                                    SELECT 
-                                        CASE 
+                                    SELECT
+                                        CASE
                                             WHEN COUNT(ia.id) = 0 THEN 0
-                                            ELSE COUNT(ia.id) * 
-                                                 (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) * 
+                                            ELSE COUNT(ia.id) *
+                                                 (COALESCE(SUM(ia.stats_invites_count), 0) / COUNT(ia.id)) *
                                                  (
-                                                    SELECT 
-                                                        CASE 
+                                                    SELECT
+                                                        CASE
                                                             WHEN COUNT(ia2.id) = 0 OR AVG(ia2.stats_invites_count) = 0 THEN 0
-                                                            ELSE CAST(SUM(ia2.price) AS DECIMAL(10,2)) / 
+                                                            ELSE CAST(SUM(ia2.price) AS DECIMAL(10,2)) /
                                                                  (CAST(AVG(ia2.stats_invites_count) AS DECIMAL(10,2)) * COUNT(ia2.id))
                                                         END
                                                     FROM invite_accounts ia2
@@ -472,23 +473,14 @@ class StatsResource extends Resource
                             ->label('До'),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if (!empty($data['date_from']) || !empty($data['date_to'])) {
-                            // Сохраняем даты фильтра в сессии для использования в расчетах
-                            session(['tableFilters.stats.date_from' => $data['date_from'] ?? null]);
-                            session(['tableFilters.stats.date_to' => $data['date_to'] ?? null]);
+                        $query->when($data['date_from'] ?? null, fn($q, $date) =>
+                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '>=', $date))
+                        );
 
-                            $query->whereHas('accounts', function ($q) use ($data) {
-                                if (!empty($data['date_from'])) {
-                                    $q->whereDate('session_created_at', '>=', $data['date_from']);
-                                }
-                                if (!empty($data['date_to'])) {
-                                    $q->whereDate('session_created_at', '<=', $data['date_to']);
-                                }
-                            });
-                        } else {
-                            // Если фильтр очищен, удаляем значения из сессии
-                            session()->forget(['tableFilters.stats.date_from', 'tableFilters.stats.date_to']);
-                        }
+                        $query->when($data['date_to'] ?? null, fn($q, $date) =>
+                            $q->whereHas('accounts', fn($qq) => $qq->whereDate('session_created_at', '<=', $date))
+                        );
+
                         return $query;
                     }),
 
@@ -505,10 +497,10 @@ class StatsResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data) {
                         if (isset($data['survival_sold_price'])) {
-                            session(['tableFilters.stats.sold_price.survival_sold_price' => $data['survival_sold_price']]);
+                            $soldPrice = $this->tableFilters['sold_price']['survival_sold_price'] ?? 0;
                         }
                         if (isset($data['invite_sold_price'])) {
-                            session(['tableFilters.stats.sold_price.invite_sold_price' => $data['invite_sold_price']]);
+                            $soldPrice = $this->tableFilters['sold_price']['survival_sold_price'] ?? 0;
                         }
                         return $query;
                     }),
