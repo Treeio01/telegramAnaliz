@@ -30,8 +30,8 @@ class InviteResource extends Resource
     public static function table(Tables\Table $table): Tables\Table
     {
         $geoFilters = request('tableFilters.geo.geo', []);
-        $fromDate = request('tableFilters.session_created_date_range.session_created_from');
-        $toDate   = request('tableFilters.session_created_date_range.session_created_to');
+        $fromDate   = request('tableFilters.session_created_date_range.session_created_from');
+        $toDate     = request('tableFilters.session_created_date_range.session_created_to');
 
         return $table
             ->query(function () use ($geoFilters, $fromDate, $toDate) {
@@ -56,21 +56,17 @@ class InviteResource extends Resource
                 ')
                     ->leftJoin('invite_accounts', function ($join) use ($geoFilters, $fromDate, $toDate) {
                         $join->on('invite_vendors.id', '=', 'invite_accounts.invite_vendor_id');
+
                         if (!empty($geoFilters)) {
                             $join->whereIn('invite_accounts.geo', $geoFilters);
                         }
                         if ($fromDate) {
-                            if (strlen($fromDate) === 10) {
-                                $fromDate .= ' 00:00:00';
-                            }
-                            $join->where('invite_accounts.session_created_at', '>=', $fromDate);
+                            $from = Carbon::parse($fromDate)->startOfDay();
+                            $join->where('invite_accounts.session_created_at', '>=', $from);
                         }
                         if ($toDate) {
-                            if (strlen($toDate) === 10) {
-                                $toDateObj = Carbon::parse($toDate)->addDay();
-                                $toDate    = $toDateObj->format('Y-m-d 00:00:00');
-                            }
-                            $join->where('invite_accounts.session_created_at', '<', $toDate);
+                            $to = Carbon::parse($toDate)->endOfDay();
+                            $join->where('invite_accounts.session_created_at', '<=', $to);
                         }
                     })
                     ->groupBy('invite_vendors.id');
@@ -242,13 +238,15 @@ class InviteResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         if (!empty($data['session_created_from'])) {
+                            $from = Carbon::parse($data['session_created_from'])->startOfDay();
                             $query->whereHas('inviteAccounts', fn($q) =>
-                                $q->whereDate('session_created_at', '>=', $data['session_created_from'])
+                                $q->where('session_created_at', '>=', $from)
                             );
                         }
                         if (!empty($data['session_created_to'])) {
+                            $to = Carbon::parse($data['session_created_to'])->endOfDay();
                             $query->whereHas('inviteAccounts', fn($q) =>
-                                $q->whereDate('session_created_at', '<=', $data['session_created_to'])
+                                $q->where('session_created_at', '<=', $to)
                             );
                         }
                         return $query;
